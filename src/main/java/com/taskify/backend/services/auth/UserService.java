@@ -1,5 +1,6 @@
 package com.taskify.backend.services.auth;
 
+import com.taskify.backend.models.auth.PricingModel;
 import com.taskify.backend.models.auth.UserRoles;
 import com.taskify.backend.repository.auth.UserRepository;
 import com.taskify.backend.services.shared.HashService;
@@ -8,6 +9,8 @@ import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.auth.RegisterUserRequest;
 import com.taskify.backend.models.auth.User;
+import com.taskify.backend.validators.auth.UserEmailValidator;
+import com.taskify.backend.validators.auth.UserLoginValidator;
 import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -110,6 +114,140 @@ public class UserService {
                 .build();
 
         user = userRepository.save(user);
+
+        long EXP = 1000 * 60 * 60 * 24 * 30;
+        String accessToken = tokenService.signToken(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "fullName", user.getFullName()
+        ), EXP);
+
+        return Map.of(
+                "user", Map.of(
+                        "id", user.getId(),
+                        "email", user.getEmail(),
+                        "fullName", user.getFullName(),
+                        "role", user.getRole()
+                ),
+                "token", accessToken
+        );
+    }
+
+    public Map<String, Object> login(UserLoginValidator request) {
+        String email = request.getEmail();
+        String password = request.getPassword();
+
+        log.info("Login request {}", request);
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ApiException("User not found.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        boolean isMatch = hashService.hashCompare(password, user.getPassword());
+        System.out.println("isMatch = " + isMatch);
+
+        if (!isMatch) {
+            throw new ApiException("Passwords don't match.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        long EXP = 1000L * 60 * 60 * 24 * 30; // 30 days
+        String accessToken = tokenService.signToken(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "password", user.getPassword()
+        ), EXP);
+
+        System.out.println("AccessToken: " + accessToken);
+
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("_id", user.getId());
+        userMap.put("email", user.getEmail());
+        userMap.put("fullName", Optional.ofNullable(user.getFullName()).orElse(""));
+        userMap.put("role", Optional.ofNullable(user.getRole()).map(UserRoles::name).orElse(""));
+        userMap.put("avatar", Optional.ofNullable(user.getAvatar()).orElse(""));
+        userMap.put("pricingModel", Optional.ofNullable(user.getPricingModel()).map(PricingModel::name).orElse(""));
+
+
+        return Map.of(
+                "user", userMap,
+                "token", accessToken
+        );
+    }
+
+    public Map<String,Object> forgotPassoword(UserEmailValidator request) {
+        String email = request.getEmail();
+        log.info("Forgot password request {}", request);
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ApiException("User not found.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        long EXP = 1000 * 60 * 60 * 24 * 2;
+
+        String resetPasswordToken = tokenService.signToken(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "fullName", user.getFullName()
+        ),EXP);
+
+        String resetPasswordLink = frontendUrl + "/verify?token=" + resetPasswordToken;
+
+        Map<String, Object> templateVariables = new HashMap<>();
+        templateVariables.put("fullName", user.getFullName());
+        templateVariables.put("resetPasswordLink", resetPasswordLink);
+
+        try {
+            notificationService.sendWithTemplate(
+                    request.getEmail(),
+                    "Reset Your Password",
+                    "reset-password",
+                    templateVariables
+            );
+        } catch (MessagingException e) {
+            throw new ApiException("Failed to send verification email", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("email", request.getEmail());
+
+        return data;
+    }
+
+    public Map<String, Object> resetPassword(VerifyEmailAndCreatePasswordRequest request) {
+        String password = request.getPassword();
+        String confirmPassword = request.getConfirmPassword();
+        String token = request.getToken();
+
+        log.info("Reset password request {}", request);
+
+        Map<String, Object> decodedToken = tokenService.verifyToken(token);
+
+        if (decodedToken == null || !decodedToken.containsKey("user")) {
+            throw new ApiException("The token provided is invalid or expired.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        long expMillis = ((Number) decodedToken.get("exp")).longValue() * 1000;
+        if (expMillis < System.currentTimeMillis()) {
+            throw new ApiException("Token has expired. Please request a new one.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        Map<String, Object> userMap = (Map<String, Object>) decodedToken.get("user");
+        String email = (String) userMap.get("email");
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ApiException("User not found. Please sign up first.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        if (!password.equals(confirmPassword)) {
+            throw new ApiException("Passwords don't match.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        String hashedPassword = hashService.hashData(password);
+        user.setPassword(hashedPassword);
+        userRepository.save(user);
 
         long EXP = 1000 * 60 * 60 * 24 * 30;
         String accessToken = tokenService.signToken(Map.of(
