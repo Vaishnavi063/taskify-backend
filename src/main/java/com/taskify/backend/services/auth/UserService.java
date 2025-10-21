@@ -7,11 +7,8 @@ import com.taskify.backend.services.shared.HashService;
 import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
-import com.taskify.backend.validators.auth.RegisterUserRequest;
+import com.taskify.backend.validators.auth.*;
 import com.taskify.backend.models.auth.User;
-import com.taskify.backend.validators.auth.UserEmailValidator;
-import com.taskify.backend.validators.auth.UserLoginValidator;
-import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -145,7 +142,6 @@ public class UserService {
         }
 
         boolean isMatch = hashService.hashCompare(password, user.getPassword());
-        System.out.println("isMatch = " + isMatch);
 
         if (!isMatch) {
             throw new ApiException("Passwords don't match.", HttpStatus.BAD_REQUEST.value());
@@ -158,7 +154,6 @@ public class UserService {
                 "password", user.getPassword()
         ), EXP);
 
-        System.out.println("AccessToken: " + accessToken);
 
         Map<String, Object> userMap = new HashMap<>();
         userMap.put("_id", user.getId());
@@ -266,5 +261,49 @@ public class UserService {
                 "token", accessToken
         );
     }
+
+    public Map<String, Object> self(TokenValidator request) {
+        String token = request.getToken();
+        log.info("Self request {}", request);
+
+        Map<String, Object> decodedToken = tokenService.verifyToken(token);
+
+        if (decodedToken == null || !decodedToken.containsKey("user")) {
+            throw new ApiException("The token provided is invalid or expired.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        Map<String, Object> userMap = (Map<String, Object>) decodedToken.get("user");
+        String email = (String) userMap.get("email");
+
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new ApiException("User not found. Please sign up first.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        return Map.of(
+                "user", userMap,
+                "token", token
+        );
+    }
+
+    public Map<String, Object> updateFullName(User user, FullNameValidator request) {
+        String fullName = request.getFullName();
+        log.info("Update full name request {}", request);
+        log.info("User {}", user);
+
+        User existingUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        existingUser.setFullName(fullName);
+        userRepository.save(existingUser);
+
+        Map<String, Object> userData = Map.of(
+                "userId", existingUser.getId(),
+                "fullName", existingUser.getFullName()
+        );
+
+        return Map.of("user", userData);
+    }
+
 
 }

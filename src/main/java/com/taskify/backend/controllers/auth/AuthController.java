@@ -1,11 +1,10 @@
 package com.taskify.backend.controllers.auth;
 
+import com.taskify.backend.models.auth.User;
 import com.taskify.backend.services.auth.UserService;
-import com.taskify.backend.validators.auth.RegisterUserRequest;
+import com.taskify.backend.validators.auth.*;
 import com.taskify.backend.utils.ApiResponse;
-import com.taskify.backend.validators.auth.UserEmailValidator;
-import com.taskify.backend.validators.auth.UserLoginValidator;
-import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -47,6 +46,25 @@ public class AuthController {
     @PostMapping("/resetPassword")
     public ApiResponse<Map<String,Object>> resetPassword(@Valid @RequestBody VerifyEmailAndCreatePasswordRequest request){
         Map<String,Object> data = userService.resetPassword(request);
-        return ApiResponse .success(data,"Your password has been reset successfully", HttpStatus.OK.value());
+        return ApiResponse.success(data,"Your password has been reset successfully", HttpStatus.OK.value());
     }
+
+    @PostMapping("/self")
+    public ApiResponse<Map<String,Object>> self(@Valid @RequestBody TokenValidator request){
+        Map<String,Object> data = userService.self(request);
+        return ApiResponse.success(data,"Fetched users details successfully", HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/updateFullName")
+    public ApiResponse<Map<String, Object>> updateFullName(
+            HttpServletRequest request,
+            @Valid @RequestBody FullNameValidator body
+    ) {
+        System.out.println("User: ");
+        User user = (User) request.getAttribute("user");
+        System.out.println("User: " + user);
+        Map<String, Object> data = userService.updateFullName(user, body);
+        return ApiResponse.success(data, "FullName updated successfully", HttpStatus.OK.value());
+    }
+
 }
