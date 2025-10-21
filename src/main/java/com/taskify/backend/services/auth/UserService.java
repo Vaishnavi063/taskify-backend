@@ -1,11 +1,14 @@
 package com.taskify.backend.services.auth;
 
+import com.taskify.backend.models.auth.UserRoles;
 import com.taskify.backend.repository.auth.UserRepository;
+import com.taskify.backend.services.shared.HashService;
 import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.auth.RegisterUserRequest;
 import com.taskify.backend.models.auth.User;
+import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,6 +24,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final TokenService tokenService;
+    private final HashService hashService;
     private final NotificationService notificationService;
     @Value("${frontend.url}")
     private String frontendUrl;
@@ -60,6 +64,72 @@ public class UserService {
 
 
         return data;
+    }
+
+    public Map<String, Object> verifyEmailAndCreatePassword(VerifyEmailAndCreatePasswordRequest request) {
+        String token = request.getToken();
+        String password = request.getPassword();
+        String confirmPassword = request.getConfirmPassword();
+
+        System.out.println("password: " + password);
+        System.out.println("confirmPassword: " + confirmPassword);
+
+        Map<String, Object> decodedToken = tokenService.verifyToken(token);
+
+        if (decodedToken == null || !decodedToken.containsKey("user")) {
+            throw new ApiException("The token provided is invalid or expired.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        long expMillis = ((Number) decodedToken.get("exp")).longValue() * 1000;
+        if (expMillis < System.currentTimeMillis()) {
+            throw new ApiException("Token has expired. Please request a new one.", HttpStatus.BAD_REQUEST.value());
+        }
+
+
+        System.out.println("decodedToken: " + decodedToken);
+
+        Map<String, Object> userMap = (Map<String, Object>) decodedToken.get("user");
+        String email = (String) userMap.get("email");
+        String fullName = (String) userMap.get("fullName");
+
+        System.out.println("email: " + email);
+        System.out.println("fullName: " + fullName);
+
+        if (userRepository.findByEmail(email) != null) {
+            throw new ApiException("User with this email already exists.", HttpStatus.CONFLICT.value());
+        }
+
+        if (!password.equals(confirmPassword)) {
+            throw new ApiException("Passwords don't match.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        String hashedPassword = hashService.hashData(password);
+
+        User user = User.builder()
+                .email(email)
+                .fullName(fullName)
+                .password(hashedPassword)
+                .role(UserRoles.USER)
+                .build();
+
+        user = userRepository.save(user);
+
+        long EXP = 1000 * 60 * 60 * 24 * 30;
+        String accessToken = tokenService.signToken(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "fullName", user.getFullName()
+        ), EXP);
+
+        return Map.of(
+                "user", Map.of(
+                        "id", user.getId(),
+                        "email", user.getEmail(),
+                        "fullName", user.getFullName(),
+                        "role", user.getRole()
+                ),
+                "token", accessToken
+        );
     }
 
 }

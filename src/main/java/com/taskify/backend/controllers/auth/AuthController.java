@@ -1,9 +1,9 @@
 package com.taskify.backend.controllers.auth;
 
-import com.taskify.backend.models.auth.User;
 import com.taskify.backend.services.auth.UserService;
 import com.taskify.backend.validators.auth.RegisterUserRequest;
 import com.taskify.backend.utils.ApiResponse;
+import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,4 +24,9 @@ public class AuthController {
         return ApiResponse.success(data, "User registered successfully", HttpStatus.CREATED.value());
     }
 
+    @PostMapping("/verifyEmailAndCreatePassword")
+    public ApiResponse<Map<String, Object>> verifyEmailAndCreatePassword(@Valid @RequestBody VerifyEmailAndCreatePasswordRequest request) {
+        Map<String, Object> data = userService.verifyEmailAndCreatePassword(request);
+        return ApiResponse.success(data, "User registered successfully", HttpStatus.CREATED.value());
+    }
 }
