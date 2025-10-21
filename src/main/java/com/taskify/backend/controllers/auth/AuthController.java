@@ -9,7 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -19,8 +19,9 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/register")
-    public ApiResponse<User> registerUser(@Valid @RequestBody RegisterUserRequest request) {
-        User user = userService.registerUser(request);
-        return ApiResponse.success(user, "User registered successfully", HttpStatus.CREATED.value());
+    public ApiResponse<Map<String, Object>> registerUser(@Valid @RequestBody RegisterUserRequest request) {
+        Map<String, Object> data = userService.registerUser(request);
+        return ApiResponse.success(data, "User registered successfully", HttpStatus.CREATED.value());
     }
+
 }

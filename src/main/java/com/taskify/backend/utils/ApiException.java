@@ -1,15 +1,15 @@
 package com.taskify.backend.utils;
 
 public class ApiException extends RuntimeException {
-    private final int status;
+    private final int statusCode;
 
-    public ApiException(String message, int status) {
+    public ApiException(String message, int statusCode) {
         super(message);
-        this.status = status;
+        this.statusCode = statusCode;
     }
 
-    public int getStatus() {
-        return status;
+    public int getstatusCode() {
+        return statusCode;
     }
 }
 
