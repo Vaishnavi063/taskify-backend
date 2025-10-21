@@ -11,6 +11,7 @@ import com.taskify.backend.models.auth.User;
 import com.taskify.backend.validators.auth.VerifyEmailAndCreatePasswordRequest;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -33,6 +35,8 @@ public class UserService {
         if (userRepository.findByEmail(request.getEmail()) != null) {
             throw new ApiException("Email already in use", HttpStatus.BAD_REQUEST.value());
         }
+
+        log.info("Registering user {}", request);
 
         long EXP = 10 * 60 * 1000;
 
@@ -71,8 +75,7 @@ public class UserService {
         String password = request.getPassword();
         String confirmPassword = request.getConfirmPassword();
 
-        System.out.println("password: " + password);
-        System.out.println("confirmPassword: " + confirmPassword);
+        log.info("Verifying email and create password request {}", request);
 
         Map<String, Object> decodedToken = tokenService.verifyToken(token);
 
@@ -85,15 +88,9 @@ public class UserService {
             throw new ApiException("Token has expired. Please request a new one.", HttpStatus.BAD_REQUEST.value());
         }
 
-
-        System.out.println("decodedToken: " + decodedToken);
-
         Map<String, Object> userMap = (Map<String, Object>) decodedToken.get("user");
         String email = (String) userMap.get("email");
         String fullName = (String) userMap.get("fullName");
-
-        System.out.println("email: " + email);
-        System.out.println("fullName: " + fullName);
 
         if (userRepository.findByEmail(email) != null) {
             throw new ApiException("User with this email already exists.", HttpStatus.CONFLICT.value());
