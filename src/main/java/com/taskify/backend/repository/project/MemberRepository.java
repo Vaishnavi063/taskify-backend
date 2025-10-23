@@ -1,7 +1,8 @@
 package com.taskify.backend.repository.project;
 
+import com.taskify.backend.constants.MemberEnums.InvitationStatus;
+import com.taskify.backend.models.auth.User;
 import com.taskify.backend.models.project.Member;
-import com.taskify.backend.models.project.Project;
 import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
@@ -16,20 +17,21 @@ public interface MemberRepository extends MongoRepository<Member, String> {
     Optional<Member> findByUserIdAndProjectId(String userId, String projectId);
 
     @Aggregation(pipeline = {
-            "{ $match: { '_id': ?0 } }",
-            "{ $lookup: { from: 'projects', localField: 'projectId', foreignField: '_id', as: 'project' } }",
+            "{ $match: { 'userId.$id': ?0, 'invitationStatus': 'ACCEPTED' } }",
+            "{ $lookup: { from: 'projects', localField: 'projectId.$id', foreignField: '_id', as: 'project' } }",
             "{ $unwind: '$project' }",
-            "{ $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } }",
+            "{ $match: { 'project.isDeleted': { $ne: true } } }",
+            "{ $lookup: { from: 'users', localField: 'project.userId.$id', foreignField: '_id', as: 'user' } }",
             "{ $unwind: '$user' }",
             "{ $project: { " +
                     "'_id': 0, " +
-                    "'projectId': '$project._id', " +
                     "'memberId': '$_id', " +
+                    "'projectId': '$project._id', " +
                     "'name': '$project.name', " +
                     "'description': '$project.description', " +
                     "'tags': '$project.tags', " +
                     "'isDeleted': '$project.isDeleted', " +
-                    "'role': '$role', " +
+                    "'role': 1, " +
                     "'owner': { " +
                     "'fullName': '$user.fullName', " +
                     "'email': '$user.email', " +
@@ -37,8 +39,7 @@ public interface MemberRepository extends MongoRepository<Member, String> {
                     "} " +
                     "} }"
     })
-    Optional<Map<String, Object>> getProjectByMemberId(String memberId);
-
-    Map<Object, Object> findByProjectId(Project projectId);
+    List<Map<String, Object>> findProjectsByUserId(String userId);
     List<Member> findByProjectId_Id(String projectId);
+    List<Member> findByUserIdAndInvitationStatus(User user, InvitationStatus status);
 }

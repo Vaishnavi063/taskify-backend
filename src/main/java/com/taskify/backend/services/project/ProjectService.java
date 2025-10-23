@@ -21,10 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -220,5 +217,49 @@ public class ProjectService {
 
 
         return Map.of("projectId", projectId);
+    }
+
+    public Map<String, Object> getProjects(User user) {
+        String userId = user.getId();
+        log.info("Fetching projects - userId: {}", userId);
+
+        List<Member> members = memberRepository.findByUserIdAndInvitationStatus(
+                user,
+                InvitationStatus.ACCEPTED
+        );
+
+        log.info("Members found: {}", members.size());
+
+        List<Map<String, Object>> projects = members.stream()
+                .map(member -> {
+                    Project project = member.getProjectId();
+
+                    if (project.isDeleted()) {
+                        return null;
+                    }
+
+                    Map<String, Object> projectData = new HashMap<>();
+                    projectData.put("projectId", project.getId());
+                    projectData.put("memberId", member.getId());
+                    projectData.put("name", project.getName());
+                    projectData.put("description", project.getDescription());
+                    projectData.put("tags", project.getTags());
+                    projectData.put("isDeleted", project.isDeleted());
+                    projectData.put("role", member.getRole());
+
+                    User owner = project.getUserId();
+                    Map<String, Object> ownerData = new HashMap<>();
+                    ownerData.put("fullName", owner.getFullName());
+                    ownerData.put("email", owner.getEmail());
+                    ownerData.put("avatar", owner.getAvatar());
+                    projectData.put("owner", ownerData);
+
+                    return projectData;
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        log.info("Projects after filtering: {}", projects.size());
+        return Map.of("projects", projects);
     }
 }

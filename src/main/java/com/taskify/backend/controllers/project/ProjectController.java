@@ -1,6 +1,7 @@
 package com.taskify.backend.controllers.project;
 
 import com.taskify.backend.models.auth.User;
+import com.taskify.backend.models.project.Project;
 import com.taskify.backend.services.project.ProjectService;
 import com.taskify.backend.utils.ApiResponse;
 import com.taskify.backend.validators.project.ProjectIdQueryValidator;
@@ -13,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -29,9 +29,7 @@ public class ProjectController {
             @Valid @ModelAttribute ProjectIdQueryValidator query
     ) {
         User user = (User) request.getAttribute("user");
-
         Map<String, Object> response = projectService.getProject(user, query);
-
         return ApiResponse.success(response, "Project details successfully fetched", HttpStatus.OK.value());
     }
 
@@ -57,5 +55,12 @@ public class ProjectController {
         User user = (User) request.getAttribute("user");
         Map<String,Object> response = projectService.deleteProject(user,projectId);
         return ApiResponse.success(response, "Project deleted successfully", HttpStatus.OK.value());
+    }
+
+    @GetMapping("/getProjects")
+    public ApiResponse<Map<String,Object>> getProjects(HttpServletRequest request){
+        User user = (User) request.getAttribute("user");
+        Map<String,Object> response = projectService.getProjects(user);
+        return ApiResponse.success(response, "Projects successfully fetched", HttpStatus.OK.value());
     }
 }
