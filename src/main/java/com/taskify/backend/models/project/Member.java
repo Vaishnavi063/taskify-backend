@@ -20,17 +20,17 @@ public class Member {
     @Id
     private String id;
 
-    @DBRef
-    private User user;
+    @DBRef(lazy = false)
+    private User userId;
 
-    @DBRef
-    private Project project;
+    @DBRef(lazy = false)
+    private Project projectId;
 
     private String email;
 
-    private String role = MemberRole.MEMBER.name();
+    private MemberRole role = MemberRole.MEMBER;
 
-    private String invitationStatus = InvitationStatus.PENDING.name();
+    private InvitationStatus invitationStatus = InvitationStatus.PENDING;
 
     private Instant createdAt = Instant.now();
     private Instant updatedAt = Instant.now();

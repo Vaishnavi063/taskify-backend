@@ -1,8 +1,14 @@
 package com.taskify.backend.services.project;
 
+import com.taskify.backend.constants.MemberEnums.InvitationStatus;
+import com.taskify.backend.constants.MemberEnums.MemberRole;
 import com.taskify.backend.models.auth.User;
+import com.taskify.backend.models.project.Label;
+import com.taskify.backend.models.project.Member;
 import com.taskify.backend.models.project.Project;
 import com.taskify.backend.repository.auth.UserRepository;
+import com.taskify.backend.repository.project.LabelRepository;
+import com.taskify.backend.repository.project.MemberRepository;
 import com.taskify.backend.repository.project.ProjectRepository;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.ProjectIdQueryValidator;
@@ -12,8 +18,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,18 +30,47 @@ import java.util.Map;
 public class ProjectService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final MemberRepository memberRepository;
+    private final LabelRepository labelRepository;
 
-    public Map<String,Object> getProject(User user, ProjectIdQueryValidator query) {
+    public Map<String, Object> getProject(User user, ProjectIdQueryValidator query) {
         log.info("User Info :: {}", user);
         log.info("Project Query Info :: {}", query);
 
-        User existingUser = userRepository.findById(user.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        String userId = user.getId();
+        String projectId = query.getProjectId();
 
-        return Map.of();
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found", HttpStatus.BAD_REQUEST.value()));
+
+        if (!InvitationStatus.ACCEPTED.equals(member.getInvitationStatus())) {
+            throw new ApiException("You are not a member of this project", HttpStatus.BAD_REQUEST.value());
+        }
+
+        Project project = member.getProjectId();
+
+        Map<String, Object> projectData = new HashMap<>();
+        projectData.put("projectId", project.getId());
+        projectData.put("memberId", member.getId());
+        projectData.put("name", project.getName());
+        projectData.put("description", project.getDescription());
+        projectData.put("tags", project.getTags());
+        projectData.put("isDeleted", project.isDeleted());
+        projectData.put("role", member.getRole());
+
+        User owner = member.getUserId();
+        Map<String, Object> ownerData = new HashMap<>();
+        ownerData.put("fullName", owner.getFullName());
+        ownerData.put("email", owner.getEmail());
+        ownerData.put("avatar", owner.getAvatar());
+        projectData.put("owner", ownerData);
+
+
+        return Map.of("project", projectData);
     }
 
-    public Map<String,Object> createProject(User user, ProjectValidator project) {
+
+    public Map<String, Object> createProject(User user, ProjectValidator project) {
         log.info("User Info :: {}", user);
         log.info("Project Query Info :: {}", project);
 
@@ -45,7 +81,6 @@ public class ProjectService {
 
         List<Project> allProjects = projectRepository.findByUserId(userId);
 
-
         switch (user.getPricingModel()) {
             case FREE:
                 if (allProjects.size() >= 1)
@@ -53,30 +88,63 @@ public class ProjectService {
                 break;
             case PREMIUM:
                 if (allProjects.size() >= 10)
-                    throw new ApiException("You can only create 10 project. Please upgrade your plan.", HttpStatus.BAD_REQUEST.value());
+                    throw new ApiException("You can only create 10 projects. Please upgrade your plan.", HttpStatus.BAD_REQUEST.value());
                 break;
             case ENTERPRISE:
                 if (allProjects.size() >= 25)
-                    throw new ApiException("You can only create 25 project. Please upgrade your plan.", HttpStatus.BAD_REQUEST.value());
+                    throw new ApiException("You can only create 25 projects. Please contact support.", HttpStatus.BAD_REQUEST.value());
                 break;
             default:
                 throw new ApiException("Invalid pricing model.", HttpStatus.BAD_REQUEST.value());
         }
 
-        List<String> tags = project.getTags() != null
-                ? project.getTags()
-                : new ArrayList<>();
-
         Project newProject = Project.builder()
                 .name(project.getName())
                 .description(project.getDescription())
-                .userId(userId)
+                .userId(existingUser)
+                .tags(project.getTags() != null ? project.getTags() : new ArrayList<>())
                 .isDeleted(false)
-                .tags(tags)
                 .build();
 
         newProject = projectRepository.save(newProject);
 
+        createDefaultLabels(newProject);
+
+        Member owner = Member.builder()
+                .userId(existingUser)
+                .projectId(newProject)
+                .email(existingUser.getEmail())
+                .invitationStatus(InvitationStatus.ACCEPTED)
+                .role(MemberRole.OWNER)
+                .build();
+        memberRepository.save(owner);
+
         return Map.of("project", newProject);
     }
+
+    private void createDefaultLabels(Project project) {
+        Instant now = Instant.now();
+
+        List<Label> defaultLabels = List.of(
+                new Label(null, project, "feature", "A new capability, functionality, or enhancement to be added.", "#2b90d9", now, now),
+                new Label(null, project, "bug", "A defect or error that causes incorrect or unexpected behavior.", "#e74c3c", now, now),
+                new Label(null, project, "improvement", "Enhancing an existing feature or optimizing performance.", "#27ae60", now, now),
+                new Label(null, project, "documentation", "Writing or updating technical or user documentation.", "#f39c12", now, now),
+                new Label(null, project, "test", "Creating or updating test cases, QA tasks, or validation work.", "#8e44ad", now, now),
+                new Label(null, project, "design", "UI/UX design tasks, including wireframes, mockups, or user flows.", "#e67e22", now, now),
+                new Label(null, project, "research", "Investigation or exploration to inform future work or decision-making.", "#16a085", now, now),
+                new Label(null, project, "refactor", "Code cleanup or restructuring without changing functionality.", "#95a5a6", now, now),
+                new Label(null, project, "maintenance", "Routine system upkeep, such as dependency updates or server patches.", "#7f8c8d", now, now),
+                new Label(null, project, "deployment", "Tasks related to releasing or deploying software to environments.", "#34495e", now, now),
+                new Label(null, project, "task", "A general-purpose task that doesn’t fit other categories.", "#bdc3c7", now, now),
+                new Label(null, project, "discussion", "Conversations or decision-making items not tied to direct implementation.", "#9b59b6", now, now),
+                new Label(null, project, "blocked", "Indicates a task is currently blocked by another issue or dependency.", "#c0392b", now, now),
+                new Label(null, project, "urgent", "High-priority task requiring immediate attention.", "#d35400", now, now),
+                new Label(null, project, "review", "Tasks involving code or design review.", "#2980b9", now, now),
+                new Label(null, project, "security", "Tasks related to fixing vulnerabilities or improving security posture.", "#e84393", now, now)
+        );
+
+        labelRepository.saveAll(defaultLabels);
+    }
+
 }

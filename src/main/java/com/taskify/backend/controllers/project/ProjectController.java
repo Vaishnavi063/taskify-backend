@@ -35,6 +35,7 @@ public class ProjectController {
     @PostMapping("/createProject")
     public ApiResponse<Map<String, Object>> createProject(HttpServletRequest request, @Valid @RequestBody ProjectValidator project){
         User user = (User) request.getAttribute("user");
+        System.out.println("USER ::" + user);
         Map<String ,Object> response = projectService.createProject(user,project);
         return ApiResponse.success(response, "Project created successfully", HttpStatus.OK.value());
     }

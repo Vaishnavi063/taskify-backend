@@ -1,7 +1,9 @@
 package com.taskify.backend.models.project;
 
+import com.taskify.backend.models.auth.User;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.ArrayList;
@@ -23,7 +25,8 @@ public class Project {
 
     private List<String> tags = new ArrayList<>();
 
-    private String userId;
+    @DBRef(lazy = false)
+    private User userId;
 
     private boolean isDeleted = false;
 
