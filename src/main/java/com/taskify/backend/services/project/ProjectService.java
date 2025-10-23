@@ -12,7 +12,9 @@ import com.taskify.backend.repository.project.MemberRepository;
 import com.taskify.backend.repository.project.ProjectRepository;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.ProjectIdQueryValidator;
+import com.taskify.backend.validators.project.ProjectIdValidator;
 import com.taskify.backend.validators.project.ProjectValidator;
+import com.taskify.backend.validators.project.UpdateProjectValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -147,4 +149,76 @@ public class ProjectService {
         labelRepository.saveAll(defaultLabels);
     }
 
+    public Map<String ,Object> updateProject(User user, UpdateProjectValidator project){
+        String projectId = project.get_id();
+        String userId = user.getId();
+
+        log.info("Fetching project - projectId: {}", projectId);
+
+        Project existedProject = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ApiException(
+                        "Project not found",
+                        HttpStatus.NOT_FOUND.value()
+                ));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException(
+                        "Member not found",
+                        HttpStatus.BAD_REQUEST.value()
+                ));
+
+        if (!MemberRole.OWNER.equals(member.getRole())) {
+            throw new ApiException(
+                    "You are not allowed to edit this project",
+                    HttpStatus.FORBIDDEN.value()
+            );
+        }
+
+        existedProject.setName(project.getName());
+        existedProject.setDescription(project.getDescription());
+        existedProject.setTags(project.getTags());
+
+        log.info("Saving updated project - projectId: {}", projectId);
+
+        Project updatedProject = projectRepository.save(existedProject);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("project", Map.of(
+                "id", updatedProject.getId(),
+                "name", updatedProject.getName(),
+                "description", updatedProject.getDescription(),
+                "tags", updatedProject.getTags()
+        ));
+
+        return response;
+    }
+
+    public Map<String,Object> deleteProject(User user, ProjectIdValidator projectIdData) {
+        String userId = user.getId();
+        String projectId = projectIdData.get_id();
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ApiException("Project not found", HttpStatus.NOT_FOUND.value()));
+
+        if (project.isDeleted()) {
+            throw new ApiException("Project already deleted", HttpStatus.BAD_REQUEST.value());
+        }
+
+        if (!project.getUserId().getId().equals(userId)) {
+            throw new ApiException("You are not allowed to delete this project", HttpStatus.FORBIDDEN.value());
+        }
+
+        project.setDeleted(true);
+        projectRepository.save(project);
+
+        List<Member> members = memberRepository.findByProjectId_Id(projectId);
+
+        members.forEach(member -> {
+            member.setInvitationStatus(InvitationStatus.REJECTED);
+            memberRepository.save(member);
+        });
+
+
+        return Map.of("projectId", projectId);
+    }
 }

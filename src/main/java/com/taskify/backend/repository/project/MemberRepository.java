@@ -1,10 +1,12 @@
 package com.taskify.backend.repository.project;
 
 import com.taskify.backend.models.project.Member;
+import com.taskify.backend.models.project.Project;
 import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,4 +38,7 @@ public interface MemberRepository extends MongoRepository<Member, String> {
                     "} }"
     })
     Optional<Map<String, Object>> getProjectByMemberId(String memberId);
+
+    Map<Object, Object> findByProjectId(Project projectId);
+    List<Member> findByProjectId_Id(String projectId);
 }

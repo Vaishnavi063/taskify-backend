@@ -15,6 +15,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "members")
+@Getter
+@Setter
 public class Member {
 
     @Id
