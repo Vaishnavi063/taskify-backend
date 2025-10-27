@@ -29,7 +29,8 @@ public class JwtVerificationFilter implements Filter {
             "/api/v1/auth/register",
             "/api/v1/auth/self",
             "/api/v1/auth/forgot-password",
-            "/api/v1/auth/reset-password"
+            "/api/v1/auth/reset-password",
+            "/api/v1/auth/verifyEmailAndCreatePassword"
     );
 
     @Override

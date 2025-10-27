@@ -60,9 +60,7 @@ public class AuthController {
             HttpServletRequest request,
             @Valid @RequestBody FullNameValidator body
     ) {
-        System.out.println("User: ");
         User user = (User) request.getAttribute("user");
-        System.out.println("User: " + user);
         Map<String, Object> data = userService.updateFullName(user, body);
         return ApiResponse.success(data, "FullName updated successfully", HttpStatus.OK.value());
     }

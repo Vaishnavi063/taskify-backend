@@ -29,6 +29,7 @@ public class UserService {
     private final TokenService tokenService;
     private final HashService hashService;
     private final NotificationService notificationService;
+
     @Value("${frontend.url}")
     private String frontendUrl;
 
@@ -304,6 +305,5 @@ public class UserService {
 
         return Map.of("user", userData);
     }
-
 
 }
