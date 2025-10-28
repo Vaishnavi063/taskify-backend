@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 550px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background-color: #1e88e5;
+            padding: 30px;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* Content */
+        .content {
+            padding: 30px;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        .greeting {
+            font-size: 15px;
+            margin-bottom: 20px;
+        }
+
+        .greeting b {
+            color: #1e88e5;
+        }
+
+        .content p {
+            margin: 12px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Button */
+        .button-wrapper {
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 35px;
+            background-color: #1e88e5;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: background-color 0.3s ease;
+        }
+
+        .button:hover {
+            background-color: #1565c0;
+        }
+
+        /* Info Box */
+        .info-box {
+            background-color: #f0f7ff;
+            border-left: 4px solid #1e88e5;
+            padding: 12px 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #333;
+        }
+
+        /* Link Section */
+        .link-section {
+            background-color: #fafafa;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .invitation-link {
+            word-break: break-all;
+            color: #1e88e5;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #fafafa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #999;
+            line-height: 1.6;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                border-radius: 0;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .button {
+                width: 100%;
+                padding: 14px 20px;
+            }
+
+            .footer {
+                padding: 15px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1 th:text="'Invitation to Collaborate on ' + ${projectName}">Invitation to Collaborate</h1>
+    </div>
+
+    <div class="content">
+        <p class="greeting">Hi <b th:text="${name}"></b>,</p>
+
+        <p th:text="${inviteSenderName} + ' from Taskify has invited you to join ' + ${projectName} + ' and collaborate seamlessly on this exciting project. Click the button below to accept the invitation and get started right away:'">
+            Someone from Taskify has invited you to collaborate.
+        </p>
+
+        <div class="button-wrapper">
+            <a th:href="${link}" class="button">Accept Invitation</a>
+        </div>
+
+        <div class="info-box">
+            Please note that this link will remain active for the next <strong>7 days</strong>.
+        </div>
+
+        <p style="font-size: 13px; color: #666; margin-top: 20px;">Or copy this link:</p>
+        <div class="link-section">
+            <div class="invitation-link" th:text="${link}"></div>
+        </div>
+
+        <p>If you weren’t expecting this invitation, you can safely ignore this email.</p>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 Taskify. All rights reserved.</p>
+        <p>This is an automated email. Please do not reply to this message.</p>
+    </div>
+</div>
+</body>
+</html>
