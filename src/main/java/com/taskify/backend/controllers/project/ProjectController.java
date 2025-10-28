@@ -50,7 +50,7 @@ public class ProjectController {
         return ApiResponse.success(response, "Project updated successfully", HttpStatus.OK.value());
     }
 
-    @DeleteMapping("deleteProject")
+    @DeleteMapping("/deleteProject")
     public ApiResponse<Map<String, Object>> deleteProject(HttpServletRequest request, @Valid @RequestBody ProjectIdValidator projectId){
         User user = (User) request.getAttribute("user");
         Map<String,Object> response = projectService.deleteProject(user,projectId);

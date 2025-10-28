@@ -23,14 +23,11 @@ public class Team {
 
     private String name;
 
-    @DBRef
     @Builder.Default
-    private List<Member> members = new ArrayList<>();
+    private List<String> members = new ArrayList<>();
 
-    @DBRef
     private Member leader;
 
     @Builder.Default
     private boolean deleted = false;
 }
-

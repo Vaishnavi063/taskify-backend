@@ -224,7 +224,7 @@ public class ProjectService {
         log.info("Fetching projects - userId: {}", userId);
 
         List<Member> members = memberRepository.findByUserIdAndInvitationStatus(
-                user,
+                userId,
                 InvitationStatus.ACCEPTED
         );
 
@@ -249,9 +249,15 @@ public class ProjectService {
 
                     User owner = project.getUserId();
                     Map<String, Object> ownerData = new HashMap<>();
-                    ownerData.put("fullName", owner.getFullName());
-                    ownerData.put("email", owner.getEmail());
-                    ownerData.put("avatar", owner.getAvatar());
+                    if (owner != null) {
+                        ownerData.put("fullName", owner.getFullName());
+                        ownerData.put("email", owner.getEmail());
+                        ownerData.put("avatar", owner.getAvatar());
+                    } else {
+                        ownerData.put("fullName", "Unknown");
+                        ownerData.put("email", "N/A");
+                        ownerData.put("avatar", null);
+                    }
                     projectData.put("owner", ownerData);
 
                     return projectData;
