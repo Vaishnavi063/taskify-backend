@@ -208,7 +208,7 @@ public class ProjectService {
         project.setDeleted(true);
         projectRepository.save(project);
 
-        List<Member> members = memberRepository.findByProjectId_Id(projectId);
+        List<Member> members = memberRepository.findByProjectId(projectId);
 
         members.forEach(member -> {
             member.setInvitationStatus(InvitationStatus.REJECTED);
