@@ -5,6 +5,7 @@ import com.taskify.backend.models.auth.User;
 import com.taskify.backend.services.project.MemberService;
 import com.taskify.backend.utils.ApiResponse;
 import com.taskify.backend.validators.project.GetMembersQuery;
+import com.taskify.backend.validators.project.RemoveMemberValidator;
 import com.taskify.backend.validators.project.inviteMemberValidator;
 import com.taskify.backend.validators.project.changeInvitationStatusValidator;
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,6 +52,16 @@ public class MemberController {
         User user = (User) httpRequest.getAttribute("user");
         Map<String, Object> response = memberService.changeInvitationStatus(user,request);
         return ApiResponse.success(response, "Invite member successfully", HttpStatus.OK.value());
+    }
+
+    @DeleteMapping("/removeMember")
+    public ApiResponse<Map<String, Object>> removeMember(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody RemoveMemberValidator request
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String, Object> response = memberService.removeMember(user,request);
+        return ApiResponse.success(response, "Member removed successfully", HttpStatus.OK.value());
     }
 
 }

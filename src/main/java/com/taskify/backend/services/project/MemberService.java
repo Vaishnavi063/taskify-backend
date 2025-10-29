@@ -14,6 +14,7 @@ import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.GetMembersQuery;
+import com.taskify.backend.validators.project.RemoveMemberValidator;
 import com.taskify.backend.validators.project.changeInvitationStatusValidator;
 import com.taskify.backend.validators.project.inviteMemberValidator;
 import jakarta.mail.MessagingException;
@@ -290,6 +291,43 @@ public class MemberService {
                 "memberId", member.getId(),
                 "email", member.getEmail(),
                 "invitationStatus", member.getInvitationStatus()
+        );
+    }
+
+    public Map<String,Object> removeMember(User user, RemoveMemberValidator request) {
+        String userId = user.getId();
+        String memberId = request.getMemberId();
+        String projectId = request.getProjectId();
+        log.info("Removing member from user {}", userId);
+        log.info("Removing member request {}", memberId, projectId);
+
+
+        Optional<Member> memberOpt = memberRepository.findById(memberId);
+        if (memberOpt.isEmpty()) {
+            throw new ApiException("Member not found", 404);
+        }
+
+        Member member = memberOpt.get();
+
+        if(!member.getRole().equals(MemberRole.MEMBER)){
+            throw new ApiException("You can not remove the owner of the project", 400);
+        }
+
+        Optional<Member> ownerOpt = memberRepository.findByUserIdAndProjectId(userId, projectId);
+        if (ownerOpt.isEmpty()) {
+            throw new ApiException("You have no permission to remove member the project", 403);
+        }
+
+        Member owner = ownerOpt.get();
+        if(!owner.getRole().equals(MemberRole.OWNER)){
+            throw new ApiException("Only the owner can remove a member from the project", 400);
+        }
+
+        memberRepository.deleteById(memberId);
+        log.info("Member {} removed successfully", memberId);
+
+        return Map.of(
+                "memberId", memberId
         );
     }
 }
