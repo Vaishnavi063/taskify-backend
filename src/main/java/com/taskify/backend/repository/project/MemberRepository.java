@@ -17,7 +17,7 @@ public interface MemberRepository extends MongoRepository<Member, String> {
     Optional<Member> findByUserIdAndProjectId(String userId, String projectId);
 
     List<Member> findByUserIdAndInvitationStatus(String userId, InvitationStatus status);
-
+    Optional<Member> findByEmailAndProjectId(String email, String projectId);
     @Query("{ 'projectId': ?0 }")
     List<Member> findByProjectId(String projectId);
 

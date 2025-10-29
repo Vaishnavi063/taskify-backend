@@ -22,14 +22,11 @@ public class Task {
     @Id
     private String id;
 
-    @DBRef
-    private Member memberId;
+    private String memberId;
 
-    @DBRef
-    private Project projectId;
+    private String projectId;
 
-    @DBRef
-    private User userId;
+    private String userId;
 
     private String title;
     private String description;
@@ -44,12 +41,10 @@ public class Task {
     private LocalDate completedDate;
 
     @Builder.Default
-    @DBRef
-    private List<Member> assignees = new ArrayList<>();
+    private List<String> assignees = new ArrayList<>();
 
     @Builder.Default
-    @DBRef
-    private List<Comment> comments = new ArrayList<>();
+    private List<String> comments = new ArrayList<>();
 
     @Builder.Default
     private List<String> subTasks = new ArrayList<>();

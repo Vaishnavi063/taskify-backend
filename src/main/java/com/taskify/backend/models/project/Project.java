@@ -25,8 +25,7 @@ public class Project {
 
     private List<String> tags = new ArrayList<>();
 
-    @DBRef(lazy = false)
-    private User userId;
+    private String userId;
 
     private boolean isDeleted = false;
 

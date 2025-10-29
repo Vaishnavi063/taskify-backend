@@ -7,6 +7,7 @@ import com.taskify.backend.models.auth.PricingModel;
 import com.taskify.backend.models.auth.User;
 import com.taskify.backend.models.project.Member;
 import com.taskify.backend.models.project.Project;
+import com.taskify.backend.repository.auth.UserRepository;
 import com.taskify.backend.repository.project.MemberRepository;
 import com.taskify.backend.repository.project.ProjectRepository;
 import com.taskify.backend.services.shared.NotificationService;
@@ -36,6 +37,7 @@ public class MemberService {
 
     private final ProjectRepository projectRepository;
     private final MemberRepository memberRepository;
+    private final UserRepository userRepository;
     private final TokenService tokenService;
     private final NotificationService notificationService;
 
@@ -48,8 +50,11 @@ public class MemberService {
             throw new ApiException("Project not found", 400);
         }
 
-        Optional<Member> memberOpt = memberRepository.findByUserIdAndProjectId(user.getId(), query.getProjectId());
-        System.out.println("MEMBERS: " + memberOpt);
+        Optional<Member> memberOpt = memberRepository.findByUserIdAndProjectId(
+                user.getId(),
+                query.getProjectId()
+        );
+
         if (memberOpt.isEmpty()) {
             throw new ApiException("Member not found", 400);
         }
@@ -78,7 +83,8 @@ public class MemberService {
         List<Member> allMembers = memberRepository.findByProjectId(query.getProjectId());
 
         List<Member> filteredMembers = allMembers.stream()
-                .filter(m -> email.isEmpty() || Pattern.compile(email, Pattern.CASE_INSENSITIVE).matcher(m.getEmail()).find())
+                .filter(m -> email.isEmpty() || Pattern.compile(email, Pattern.CASE_INSENSITIVE)
+                        .matcher(m.getEmail()).find())
                 .filter(m -> status == null || m.getInvitationStatus().equals(status))
                 .collect(Collectors.toList());
 
@@ -92,9 +98,16 @@ public class MemberService {
         List<Member> paginated = filteredMembers.subList(start, end);
 
         List<GetMembersResponseDto.MemberDto> memberDtos = paginated.stream().map(m -> {
-            GetMembersResponseDto.UserDto userDto = new GetMembersResponseDto.UserDto(
-                    m.getUserId() != null ? m.getUserId().getFullName() : "Pending"
-            );
+            String fullName = "Pending";
+
+            if (m.getUserId() != null && !m.getUserId().isEmpty()) {
+                Optional<User> userOpt = userRepository.findById(m.getUserId());
+                if (userOpt.isPresent()) {
+                    fullName = userOpt.get().getFullName();
+                }
+            }
+
+            GetMembersResponseDto.UserDto userDto = new GetMembersResponseDto.UserDto(fullName);
 
             return new GetMembersResponseDto.MemberDto(
                     m.getId(),
@@ -120,7 +133,7 @@ public class MemberService {
         return responseDto;
     }
 
-    public Map<String,Object> inviteMember(User user, inviteMemberValidator  request) {
+    public Map<String, Object> inviteMember(User user, inviteMemberValidator request) {
         String email = request.getEmail();
         String projectId = request.getProjectId();
 
@@ -134,8 +147,9 @@ public class MemberService {
         }
         Project project = projectOpt.get();
 
-        Optional<Member> existingMemberOpt = memberRepository.findByUserIdAndProjectId(email, projectId);
+        Optional<Member> existingMemberOpt = memberRepository.findByEmailAndProjectId(email, projectId);
         log.info("Existing member found: {}", existingMemberOpt.isPresent() ? existingMemberOpt.get() : "none");
+
         if (existingMemberOpt.isPresent()) {
             InvitationStatus status = existingMemberOpt.get().getInvitationStatus();
             if (status == InvitationStatus.ACCEPTED) {
@@ -162,7 +176,7 @@ public class MemberService {
         Member member = existingMemberOpt.orElseGet(() -> {
             Member newMember = new Member();
             newMember.setEmail(email);
-            newMember.setProjectId(project);
+            newMember.setProjectId(projectId);  // Store only project ID
             newMember.setRole(MemberRole.MEMBER);
             newMember.setInvitationStatus(InvitationStatus.PENDING);
             newMember.setCreatedAt(Instant.now());
@@ -170,8 +184,7 @@ public class MemberService {
             return memberRepository.save(newMember);
         });
 
-
-        long EXP = 60 * 60 * 1000 * 24 * 7;
+        long EXP = 60 * 60 * 1000 * 24 * 7;  // 7 days
 
         Map<String, Object> userPayload = Map.of(
                 "email", email,
@@ -186,7 +199,6 @@ public class MemberService {
         String invitationLink = "https://frontend-url.com/invite?token=" + inviteToken +
                 "&projectName=" + project.getName() +
                 "&email=" + email;
-
 
         log.info("Invitation link generated: {}", invitationLink);
 
@@ -204,13 +216,11 @@ public class MemberService {
                     templateVariables
             );
         } catch (MessagingException e) {
+            log.error("Failed to send invite email", e);
             throw new ApiException("Failed to send invite email", HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
 
-
-        return Map.of(
-                "memberId", member.getId()
-        );
+        return Map.of("memberId", member.getId());
     }
 
     public Map<String, Object> changeInvitationStatus(User user, changeInvitationStatusValidator request) {
@@ -227,9 +237,8 @@ public class MemberService {
         }
 
         log.info("Decoded member: {}", decodedMember);
-        log.info("Decoded member keys: {}", decodedMember.keySet());
 
-        // Check expiration
+        // ✅ Check token expiration
         Object expObj = decodedMember.get("exp");
         log.info("Invitation exp obj {}", expObj);
         if (expObj != null && ((Number) expObj).longValue() * 1000 <= System.currentTimeMillis()) {
@@ -273,7 +282,7 @@ public class MemberService {
 
         member.setInvitationStatus(invitationStatus);
         member.setEmail(tokenEmail);
-        member.setUserId(user);
+        member.setUserId(user.getId());
         member.setUpdatedAt(Instant.now());
         memberRepository.save(member);
 
@@ -283,5 +292,4 @@ public class MemberService {
                 "invitationStatus", member.getInvitationStatus()
         );
     }
-
 }

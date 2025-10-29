@@ -18,15 +18,14 @@ public class Team {
     @Id
     private String id;
 
-    @DBRef
-    private Project projectId;
+    private String projectId;
 
     private String name;
 
     @Builder.Default
     private List<String> members = new ArrayList<>();
 
-    private Member leader;
+    private String leader;
 
     @Builder.Default
     private boolean deleted = false;

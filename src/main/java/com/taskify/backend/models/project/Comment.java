@@ -2,7 +2,6 @@ package com.taskify.backend.models.project;
 
 import lombok.*;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -21,8 +20,7 @@ public class Comment {
 
     private String content;
 
-    @DBRef
-    private Member memberId;
+    private String memberId;
 
     @Builder.Default
     private int likes = 0;
