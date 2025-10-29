@@ -4,10 +4,7 @@ import com.taskify.backend.dto.Member.GetMembersResponseDto;
 import com.taskify.backend.models.auth.User;
 import com.taskify.backend.services.project.MemberService;
 import com.taskify.backend.utils.ApiResponse;
-import com.taskify.backend.validators.project.GetMembersQuery;
-import com.taskify.backend.validators.project.RemoveMemberValidator;
-import com.taskify.backend.validators.project.inviteMemberValidator;
-import com.taskify.backend.validators.project.changeInvitationStatusValidator;
+import com.taskify.backend.validators.project.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +59,16 @@ public class MemberController {
         User user = (User) httpRequest.getAttribute("user");
         Map<String, Object> response = memberService.removeMember(user,request);
         return ApiResponse.success(response, "Member removed successfully", HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/updateMember")
+    public ApiResponse<Map<String, Object>> updateMember(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody UpdateMemberValidator request
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String, Object> response = memberService.updateMember(user,request);
+        return ApiResponse.success(response, "Member updated successfully", HttpStatus.OK.value());
     }
 
 }

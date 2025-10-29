@@ -13,10 +13,7 @@ import com.taskify.backend.repository.project.ProjectRepository;
 import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
-import com.taskify.backend.validators.project.GetMembersQuery;
-import com.taskify.backend.validators.project.RemoveMemberValidator;
-import com.taskify.backend.validators.project.changeInvitationStatusValidator;
-import com.taskify.backend.validators.project.inviteMemberValidator;
+import com.taskify.backend.validators.project.*;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -330,4 +327,39 @@ public class MemberService {
                 "memberId", memberId
         );
     }
+
+    public Map<String,Object> updateMember(User user, UpdateMemberValidator request) {
+        String memberId = request.getMemberId();
+        String projectId = request.getProjectId();
+        MemberRole newRole = request.getRole();
+
+        log.info("Updating member request: memberId={}, projectId={}, newRole={}", memberId, projectId, newRole);
+
+        Optional<Member> memberOpt = memberRepository.findById(memberId);
+        if (memberOpt.isEmpty()) {
+            throw new ApiException("Member not found", 404);
+        }
+
+        Member member = memberOpt.get();
+
+        if(member.getRole().equals(MemberRole.OWNER)){
+            throw new ApiException("You cannot update the owner of the project", 400);
+        }
+
+        Optional<Member> ownerOpt = memberRepository.findByUserIdAndProjectId(user.getId(), projectId);
+        if (ownerOpt.isEmpty() || !ownerOpt.get().getRole().equals(MemberRole.OWNER)) {
+            throw new ApiException("Only the owner can update a member role", 403);
+        }
+
+        member.setRole(newRole);
+        memberRepository.save(member);
+        log.info("Member {} role updated to {}", memberId, newRole);
+
+        return Map.of(
+                "memberId", memberId,
+                "newRole", newRole,
+                "status", "updated"
+        );
+    }
+
 }
