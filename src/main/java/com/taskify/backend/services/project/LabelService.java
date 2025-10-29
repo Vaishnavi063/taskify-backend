@@ -26,7 +26,7 @@ public class LabelService {
         log.info("User {}",user);
 
         String userId = user.getId();
-        String projectId = label.getProjectId().getId();
+        String projectId = label.getProjectId();
 
         Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
                 .orElseThrow(() -> new ApiException("Member not found", HttpStatus.BAD_REQUEST.value()));

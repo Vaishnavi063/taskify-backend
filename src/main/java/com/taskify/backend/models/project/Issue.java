@@ -20,9 +20,9 @@ public class Issue {
     @Id
     private String id;
 
-    private Member memberId;
-    private Project projectId;
-    private User userId;
+    private String memberId;
+    private String projectId;
+    private String userId;
 
     private String title;
     private String description;
@@ -34,17 +34,17 @@ public class Issue {
     private IssuePriority priority = IssuePriority.LOW;
 
     @Builder.Default
-    private List<Member> assignees = List.of();
+    private List<String> assignees = List.of();
 
     @Builder.Default
-    private List<Comment> comments = List.of();
+    private List<String> comments = List.of();
 
     @Builder.Default
     private List<String> labels = List.of();
 
     private LocalDateTime closedDate;
 
-    private Member closedBy;
+    private String closedBy;
 
     @Builder.Default
     private Boolean isDeleted = false;

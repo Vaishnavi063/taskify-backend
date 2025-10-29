@@ -19,8 +19,7 @@ public class Label {
     @Id
     private String id;
 
-    @DBRef
-    private Project projectId;
+    private String projectId;
 
     private String name;
     private String description;

@@ -18,8 +18,8 @@ public class ProjectDocument {
     @Id
     private String id;
 
-    private Member memberId;
-    private Project projectId;
+    private String memberId;  // ✨ Changed: Store ID only
+    private String projectId;  // ✨ Changed: Store ID only
 
     private String title;
     private String content;
@@ -31,13 +31,13 @@ public class ProjectDocument {
     private DocAccessType accessType = DocAccessType.PRIVATE;
 
     @Builder.Default
-    private List<Member> assignees = List.of();
+    private List<String> assignees = List.of();
 
     @Builder.Default
-    private List<Team> teams = List.of();
+    private List<String> teams = List.of();
 
     @Builder.Default
-    private List<Comment> comments = List.of();
+    private List<String> comments = List.of();
 
     @Builder.Default
     private Boolean isDeleted = false;

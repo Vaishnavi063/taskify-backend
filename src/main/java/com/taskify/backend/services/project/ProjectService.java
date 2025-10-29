@@ -46,7 +46,11 @@ public class ProjectService {
             throw new ApiException("You are not a member of this project", HttpStatus.BAD_REQUEST.value());
         }
 
-        Project project = member.getProjectId();
+        Project project = projectRepository.findById(member.getProjectId())
+                .orElseThrow(() -> new ApiException("Project not found", HttpStatus.NOT_FOUND.value()));
+
+        User owner = userRepository.findById(project.getUserId())
+                .orElseThrow(() -> new ApiException("Owner not found", HttpStatus.NOT_FOUND.value()));
 
         Map<String, Object> projectData = new HashMap<>();
         projectData.put("projectId", project.getId());
@@ -57,17 +61,14 @@ public class ProjectService {
         projectData.put("isDeleted", project.isDeleted());
         projectData.put("role", member.getRole());
 
-        User owner = member.getUserId();
         Map<String, Object> ownerData = new HashMap<>();
         ownerData.put("fullName", owner.getFullName());
         ownerData.put("email", owner.getEmail());
         ownerData.put("avatar", owner.getAvatar());
         projectData.put("owner", ownerData);
 
-
         return Map.of("project", projectData);
     }
-
 
     public Map<String, Object> createProject(User user, ProjectValidator project) {
         log.info("User Info :: {}", user);
@@ -97,10 +98,11 @@ public class ProjectService {
                 throw new ApiException("Invalid pricing model.", HttpStatus.BAD_REQUEST.value());
         }
 
+        // ✅ Store only userId as String
         Project newProject = Project.builder()
                 .name(project.getName())
                 .description(project.getDescription())
-                .userId(existingUser)
+                .userId(userId)  // Store only the ID string
                 .tags(project.getTags() != null ? project.getTags() : new ArrayList<>())
                 .isDeleted(false)
                 .build();
@@ -109,9 +111,10 @@ public class ProjectService {
 
         createDefaultLabels(newProject);
 
+        // ✅ Store only IDs as Strings
         Member owner = Member.builder()
-                .userId(existingUser)
-                .projectId(newProject)
+                .userId(userId)  // Store only the ID string
+                .projectId(newProject.getId())  // Store only the ID string
                 .email(existingUser.getEmail())
                 .invitationStatus(InvitationStatus.ACCEPTED)
                 .role(MemberRole.OWNER)
@@ -125,28 +128,28 @@ public class ProjectService {
         Instant now = Instant.now();
 
         List<Label> defaultLabels = List.of(
-                new Label(null, project, "feature", "A new capability, functionality, or enhancement to be added.", "#2b90d9", now, now),
-                new Label(null, project, "bug", "A defect or error that causes incorrect or unexpected behavior.", "#e74c3c", now, now),
-                new Label(null, project, "improvement", "Enhancing an existing feature or optimizing performance.", "#27ae60", now, now),
-                new Label(null, project, "documentation", "Writing or updating technical or user documentation.", "#f39c12", now, now),
-                new Label(null, project, "test", "Creating or updating test cases, QA tasks, or validation work.", "#8e44ad", now, now),
-                new Label(null, project, "design", "UI/UX design tasks, including wireframes, mockups, or user flows.", "#e67e22", now, now),
-                new Label(null, project, "research", "Investigation or exploration to inform future work or decision-making.", "#16a085", now, now),
-                new Label(null, project, "refactor", "Code cleanup or restructuring without changing functionality.", "#95a5a6", now, now),
-                new Label(null, project, "maintenance", "Routine system upkeep, such as dependency updates or server patches.", "#7f8c8d", now, now),
-                new Label(null, project, "deployment", "Tasks related to releasing or deploying software to environments.", "#34495e", now, now),
-                new Label(null, project, "task", "A general-purpose task that doesn’t fit other categories.", "#bdc3c7", now, now),
-                new Label(null, project, "discussion", "Conversations or decision-making items not tied to direct implementation.", "#9b59b6", now, now),
-                new Label(null, project, "blocked", "Indicates a task is currently blocked by another issue or dependency.", "#c0392b", now, now),
-                new Label(null, project, "urgent", "High-priority task requiring immediate attention.", "#d35400", now, now),
-                new Label(null, project, "review", "Tasks involving code or design review.", "#2980b9", now, now),
-                new Label(null, project, "security", "Tasks related to fixing vulnerabilities or improving security posture.", "#e84393", now, now)
+                new Label(null, project.getId(), "feature", "A new capability, functionality, or enhancement to be added.", "#2b90d9", now, now),
+                new Label(null, project.getId(), "bug", "A defect or error that causes incorrect or unexpected behavior.", "#e74c3c", now, now),
+                new Label(null, project.getId(), "improvement", "Enhancing an existing feature or optimizing performance.", "#27ae60", now, now),
+                new Label(null, project.getId(), "documentation", "Writing or updating technical or user documentation.", "#f39c12", now, now),
+                new Label(null, project.getId(), "test", "Creating or updating test cases, QA tasks, or validation work.", "#8e44ad", now, now),
+                new Label(null, project.getId(), "design", "UI/UX design tasks, including wireframes, mockups, or user flows.", "#e67e22", now, now),
+                new Label(null, project.getId(), "research", "Investigation or exploration to inform future work or decision-making.", "#16a085", now, now),
+                new Label(null, project.getId(), "refactor", "Code cleanup or restructuring without changing functionality.", "#95a5a6", now, now),
+                new Label(null, project.getId(), "maintenance", "Routine system upkeep, such as dependency updates or server patches.", "#7f8c8d", now, now),
+                new Label(null, project.getId(), "deployment", "Tasks related to releasing or deploying software to environments.", "#34495e", now, now),
+                new Label(null, project.getId(), "task", "A general-purpose task that doesn't fit other categories.", "#bdc3c7", now, now),
+                new Label(null, project.getId(), "discussion", "Conversations or decision-making items not tied to direct implementation.", "#9b59b6", now, now),
+                new Label(null, project.getId(), "blocked", "Indicates a task is currently blocked by another issue or dependency.", "#c0392b", now, now),
+                new Label(null, project.getId(), "urgent", "High-priority task requiring immediate attention.", "#d35400", now, now),
+                new Label(null, project.getId(), "review", "Tasks involving code or design review.", "#2980b9", now, now),
+                new Label(null, project.getId(), "security", "Tasks related to fixing vulnerabilities or improving security posture.", "#e84393", now, now)
         );
 
         labelRepository.saveAll(defaultLabels);
     }
 
-    public Map<String ,Object> updateProject(User user, UpdateProjectValidator project){
+    public Map<String, Object> updateProject(User user, UpdateProjectValidator project) {
         String projectId = project.get_id();
         String userId = user.getId();
 
@@ -190,7 +193,7 @@ public class ProjectService {
         return response;
     }
 
-    public Map<String,Object> deleteProject(User user, ProjectIdValidator projectIdData) {
+    public Map<String, Object> deleteProject(User user, ProjectIdValidator projectIdData) {
         String userId = user.getId();
         String projectId = projectIdData.get_id();
 
@@ -201,20 +204,19 @@ public class ProjectService {
             throw new ApiException("Project already deleted", HttpStatus.BAD_REQUEST.value());
         }
 
-        if (!project.getUserId().getId().equals(userId)) {
+        if (!project.getUserId().equals(userId)) {
             throw new ApiException("You are not allowed to delete this project", HttpStatus.FORBIDDEN.value());
         }
 
         project.setDeleted(true);
         projectRepository.save(project);
 
-        List<Member> members = memberRepository.findByProjectId_Id(projectId);
+        List<Member> members = memberRepository.findByProjectId(projectId);
 
         members.forEach(member -> {
             member.setInvitationStatus(InvitationStatus.REJECTED);
             memberRepository.save(member);
         });
-
 
         return Map.of("projectId", projectId);
     }
@@ -224,7 +226,7 @@ public class ProjectService {
         log.info("Fetching projects - userId: {}", userId);
 
         List<Member> members = memberRepository.findByUserIdAndInvitationStatus(
-                user,
+                userId,
                 InvitationStatus.ACCEPTED
         );
 
@@ -232,11 +234,15 @@ public class ProjectService {
 
         List<Map<String, Object>> projects = members.stream()
                 .map(member -> {
-                    Project project = member.getProjectId();
+                    Project project = projectRepository.findById(member.getProjectId())
+                            .orElse(null);
 
-                    if (project.isDeleted()) {
+                    if (project == null || project.isDeleted()) {
                         return null;
                     }
+
+                    User owner = userRepository.findById(project.getUserId())
+                            .orElse(null);
 
                     Map<String, Object> projectData = new HashMap<>();
                     projectData.put("projectId", project.getId());
@@ -247,11 +253,16 @@ public class ProjectService {
                     projectData.put("isDeleted", project.isDeleted());
                     projectData.put("role", member.getRole());
 
-                    User owner = project.getUserId();
                     Map<String, Object> ownerData = new HashMap<>();
-                    ownerData.put("fullName", owner.getFullName());
-                    ownerData.put("email", owner.getEmail());
-                    ownerData.put("avatar", owner.getAvatar());
+                    if (owner != null) {
+                        ownerData.put("fullName", owner.getFullName());
+                        ownerData.put("email", owner.getEmail());
+                        ownerData.put("avatar", owner.getAvatar());
+                    } else {
+                        ownerData.put("fullName", "Unknown");
+                        ownerData.put("email", "N/A");
+                        ownerData.put("avatar", null);
+                    }
                     projectData.put("owner", ownerData);
 
                     return projectData;

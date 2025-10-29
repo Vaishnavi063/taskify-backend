@@ -22,11 +22,9 @@ public class Member {
     @Id
     private String id;
 
-    @DBRef(lazy = false)
-    private User userId;
+    private String userId;
 
-    @DBRef(lazy = false)
-    private Project projectId;
+    private String projectId;
 
     private String email;
 
