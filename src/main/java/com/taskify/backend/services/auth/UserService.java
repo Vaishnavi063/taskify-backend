@@ -85,14 +85,32 @@ public class UserService {
             throw new ApiException("The token provided is invalid or expired.", HttpStatus.BAD_REQUEST.value());
         }
 
-        long expMillis = ((Number) decodedToken.get("exp")).longValue() * 1000;
+        Object expObj = decodedToken.get("exp");
+        if (expObj == null) {
+            throw new ApiException("Token expiration missing.", HttpStatus.BAD_REQUEST.value());
+        }
+
+        long expMillis = ((Number) expObj).longValue() * 1000;
         if (expMillis < System.currentTimeMillis()) {
             throw new ApiException("Token has expired. Please request a new one.", HttpStatus.BAD_REQUEST.value());
         }
 
         Map<String, Object> userMap = (Map<String, Object>) decodedToken.get("user");
+        if (userMap.containsKey("user")) {
+            Object nestedUser = userMap.get("user");
+            if (nestedUser instanceof Map<?, ?>) {
+                userMap = (Map<String, Object>) nestedUser;
+            } else {
+                throw new ApiException("Invalid token payload: nested user is malformed.", HttpStatus.BAD_REQUEST.value());
+            }
+        }
+
         String email = (String) userMap.get("email");
         String fullName = (String) userMap.get("fullName");
+
+        if (email == null || fullName == null) {
+            throw new ApiException("Invalid token payload: email or fullName missing.", HttpStatus.BAD_REQUEST.value());
+        }
 
         if (userRepository.findByEmail(email) != null) {
             throw new ApiException("User with this email already exists.", HttpStatus.CONFLICT.value());
@@ -113,12 +131,14 @@ public class UserService {
 
         user = userRepository.save(user);
 
-        long EXP = 1000 * 60 * 60 * 24 * 30;
-        String accessToken = tokenService.signToken(Map.of(
-                "id", user.getId(),
-                "email", user.getEmail(),
-                "fullName", user.getFullName()
-        ), EXP);
+        long EXP = 1000L * 60 * 60 * 24 * 30; // 30 days
+        String accessToken = tokenService.signToken(
+                Map.of("user", Map.of(
+                        "id", user.getId(),
+                        "email", user.getEmail(),
+                        "fullName", user.getFullName()
+                )), EXP
+        );
 
         return Map.of(
                 "user", Map.of(
@@ -130,6 +150,7 @@ public class UserService {
                 "token", accessToken
         );
     }
+
 
     public Map<String, Object> login(UserLoginValidator request) {
         String email = request.getEmail();

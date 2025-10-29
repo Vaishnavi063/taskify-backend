@@ -57,21 +57,40 @@ public class JwtVerificationFilter implements Filter {
             }
 
             Claims claims = tokenService.verifyToken(token);
-
-            Map<String, Object> userMap = claims.get("user", Map.class);
-            if (userMap == null || !userMap.containsKey("id")) {
-                sendError(httpResponse, "Invalid token payload");
+            if (claims == null) {
+                sendError(httpResponse, "Unauthorized: Invalid token");
                 return;
             }
 
-            String userId = (String) userMap.get("id");
+            Map<String, Object> userMap = claims.get("user", Map.class);
+            if (userMap == null) {
+                sendError(httpResponse, "Invalid token payload: user missing");
+                return;
+            }
 
+            if (userMap.containsKey("user")) {
+                Object nestedUser = userMap.get("user");
+                if (nestedUser instanceof Map<?, ?>) {
+                    userMap = (Map<String, Object>) nestedUser;
+                } else {
+                    sendError(httpResponse, "Invalid token payload: nested user is malformed");
+                    return;
+                }
+            }
+
+            if (!userMap.containsKey("id")) {
+                sendError(httpResponse, "Invalid token payload: user ID missing");
+                return;
+            }
+
+            String userId = String.valueOf(userMap.get("id"));
             Optional<User> userOpt = userRepository.findById(userId);
             if (userOpt.isEmpty()) {
                 sendError(httpResponse, "Invalid token: user not found");
                 return;
             }
 
+            // Attach authenticated user to request
             httpRequest.setAttribute("user", userOpt.get());
 
             chain.doFilter(request, response);

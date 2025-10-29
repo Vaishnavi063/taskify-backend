@@ -6,13 +6,13 @@ import com.taskify.backend.services.project.MemberService;
 import com.taskify.backend.utils.ApiResponse;
 import com.taskify.backend.validators.project.GetMembersQuery;
 import com.taskify.backend.validators.project.inviteMemberValidator;
+import com.taskify.backend.validators.project.changeInvitationStatusValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
@@ -40,6 +40,16 @@ public class MemberController {
     ){
         User user = (User) httpRequest.getAttribute("user");
         Map<String, Object> response = memberService.inviteMember(user,request);
+        return ApiResponse.success(response, "Invite member successfully", HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/changeInvitationStatus")
+    public ApiResponse<Map<String, Object>> changeInvitationStatus(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody changeInvitationStatusValidator request
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String, Object> response = memberService.changeInvitationStatus(user,request);
         return ApiResponse.success(response, "Invite member successfully", HttpStatus.OK.value());
     }
 

@@ -13,6 +13,7 @@ import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.services.shared.TokenService;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.GetMembersQuery;
+import com.taskify.backend.validators.project.changeInvitationStatusValidator;
 import com.taskify.backend.validators.project.inviteMemberValidator;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +82,7 @@ public class MemberService {
                 .filter(m -> status == null || m.getInvitationStatus().equals(status))
                 .collect(Collectors.toList());
 
-        int page = Math.max(0, query.getPage() - 1); // zero-based page number
+        int page = Math.max(0, query.getPage() - 1);
         int limit = query.getLimit();
         int totalMembers = filteredMembers.size();
         int totalPages = (int) Math.ceil((double) totalMembers / limit);
@@ -92,13 +93,13 @@ public class MemberService {
 
         List<GetMembersResponseDto.MemberDto> memberDtos = paginated.stream().map(m -> {
             GetMembersResponseDto.UserDto userDto = new GetMembersResponseDto.UserDto(
-                    m.getUserId().getFullName()
+                    m.getUserId() != null ? m.getUserId().getFullName() : "Pending"
             );
 
             return new GetMembersResponseDto.MemberDto(
                     m.getId(),
                     m.getEmail(),
-                    m.getRole().toString(),
+                    m.getRole() != null ? m.getRole().toString() : "N/A",
                     m.getInvitationStatus(),
                     userDto
             );
@@ -125,6 +126,7 @@ public class MemberService {
 
         log.info("Inviting member for user {}", user);
         log.info("Inviting member request {}", request);
+        log.info("Inviting member request email {}", email);
 
         Optional<Project> projectOpt = projectRepository.findById(projectId);
         if (projectOpt.isEmpty()) {
@@ -133,9 +135,14 @@ public class MemberService {
         Project project = projectOpt.get();
 
         Optional<Member> existingMemberOpt = memberRepository.findByUserIdAndProjectId(email, projectId);
-        if (existingMemberOpt.isPresent() &&
-                existingMemberOpt.get().getInvitationStatus() == InvitationStatus.ACCEPTED) {
-            throw new ApiException(email + " is already a member of this project", 400);
+        log.info("Existing member found: {}", existingMemberOpt.isPresent() ? existingMemberOpt.get() : "none");
+        if (existingMemberOpt.isPresent()) {
+            InvitationStatus status = existingMemberOpt.get().getInvitationStatus();
+            if (status == InvitationStatus.ACCEPTED) {
+                throw new ApiException(email + " is already a member of this project", 400);
+            } else if (status == InvitationStatus.PENDING) {
+                throw new ApiException(email + " has already been invited", 400);
+            }
         }
 
         int count = memberRepository.findByProjectId(projectId).size();
@@ -205,4 +212,76 @@ public class MemberService {
                 "memberId", member.getId()
         );
     }
+
+    public Map<String, Object> changeInvitationStatus(User user, changeInvitationStatusValidator request) {
+        String userEmail = user.getEmail();
+        InvitationStatus invitationStatus = request.getInvitationStatus();
+        String invitationToken = request.getInvitationToken();
+
+        log.info("Changing invitation status for user {}", userEmail);
+        log.info("Changing invitation status request {}", request);
+
+        Map<String, Object> decodedMember = tokenService.verifyToken(invitationToken);
+        if (decodedMember == null || !decodedMember.containsKey("user")) {
+            throw new ApiException("Invitation token is invalid", 400);
+        }
+
+        log.info("Decoded member: {}", decodedMember);
+        log.info("Decoded member keys: {}", decodedMember.keySet());
+
+        // Check expiration
+        Object expObj = decodedMember.get("exp");
+        log.info("Invitation exp obj {}", expObj);
+        if (expObj != null && ((Number) expObj).longValue() * 1000 <= System.currentTimeMillis()) {
+            throw new ApiException("Invitation token is expired", 400);
+        }
+
+        Map<String, Object> tokenUser = (Map<String, Object>) decodedMember.get("user");
+        if (tokenUser.containsKey("user")) {
+            Object nestedUser = tokenUser.get("user");
+            if (nestedUser instanceof Map<?, ?>) {
+                tokenUser = (Map<String, Object>) nestedUser;
+            } else {
+                throw new ApiException("Invalid token payload: nested user is malformed", 400);
+            }
+        }
+
+        log.info("Changing invitation status for token user {}", tokenUser);
+
+        String tokenEmail = tokenUser.get("email") != null ? tokenUser.get("email").toString().trim() : "";
+        String userEmailSafe = userEmail != null ? userEmail.trim() : "";
+
+        log.info("Check Email - token: {}, current user: {}", tokenEmail, userEmailSafe);
+
+        if (!tokenEmail.equalsIgnoreCase(userEmailSafe)) {
+            throw new ApiException(
+                    "You are not allowed to " + invitationStatus + " this invitation", 400
+            );
+        }
+
+        String memberId = (String) tokenUser.get("memberId");
+        Optional<Member> memberOpt = memberRepository.findById(memberId);
+        if (memberOpt.isEmpty()) {
+            throw new ApiException("Member not found", 404);
+        }
+
+        Member member = memberOpt.get();
+
+        if (member.getInvitationStatus() == InvitationStatus.ACCEPTED) {
+            throw new ApiException("This user has already accepted the project invitation", 400);
+        }
+
+        member.setInvitationStatus(invitationStatus);
+        member.setEmail(tokenEmail);
+        member.setUserId(user);
+        member.setUpdatedAt(Instant.now());
+        memberRepository.save(member);
+
+        return Map.of(
+                "memberId", member.getId(),
+                "email", member.getEmail(),
+                "invitationStatus", member.getInvitationStatus()
+        );
+    }
+
 }
