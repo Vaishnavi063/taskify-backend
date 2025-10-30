@@ -14,6 +14,7 @@ import com.taskify.backend.repository.project.MemberRepository;
 import com.taskify.backend.repository.project.ProjectRepository;
 import com.taskify.backend.repository.project.TaskRepository;
 import com.taskify.backend.utils.ApiException;
+import com.taskify.backend.validators.project.GetTaskQueryValidator;
 import com.taskify.backend.validators.project.TaskValidator;
 import com.taskify.backend.validators.project.UpdateTaskValidator;
 import lombok.RequiredArgsConstructor;
@@ -162,6 +163,34 @@ public class TaskService {
                 "status", 200,
                 "message", "Task updated successfully",
                 "task", updatedTask
+        );
+    }
+
+    public Map<String,Object> getTask(User user, GetTaskQueryValidator query){
+        String userId = user.getId();
+        String projectId = query.getProjectId();
+        String taskId = query.getTaskId();
+        log.info("Getting task {} for user {} project {}", taskId, userId, projectId);
+
+        Optional<Member> memberOpt = memberRepository.findByUserIdAndProjectId(userId, projectId);
+        if (memberOpt.isEmpty()) {
+            throw new ApiException("Member not found", 404);
+        }
+        Member member = memberOpt.get();
+
+        Optional<Project>  projectOpt = projectRepository.findById(projectId);
+        if (projectOpt.isEmpty()) {
+            throw new ApiException("Project not found", 404);
+        }
+
+        Optional<Map<String, Object>> taskOpt = taskRepository.getTaskByIdAndMemberId(taskId,member.getId());
+        if (taskOpt.isEmpty()) {
+            throw new ApiException("Task not found", 404);
+        }
+        Map<String, Object> task = taskOpt.get();
+
+        return Map.of(
+                "task", task
         );
     }
 }
