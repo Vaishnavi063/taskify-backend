@@ -194,7 +194,7 @@ public class MemberService {
 
         String inviteToken = tokenService.signToken(payload, EXP);
 
-        String invitationLink = "https://frontend-url.com/invite?token=" + inviteToken +
+        String invitationLink = "https://frontend-url.com/guidance/invitation?invitationToken=" + inviteToken +
                 "&projectName=" + project.getName() +
                 "&email=" + email;
 

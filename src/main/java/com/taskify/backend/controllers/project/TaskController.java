@@ -5,6 +5,7 @@ import com.taskify.backend.services.project.TaskService;
 import com.taskify.backend.utils.ApiResponse;
 import com.taskify.backend.validators.project.TaskValidator;
 import com.taskify.backend.validators.project.UpdateMemberValidator;
+import com.taskify.backend.validators.project.UpdateTaskValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,4 +31,15 @@ public class TaskController {
         Map<String, Object> response = taskService.createTask(user,request);
         return ApiResponse.success(response, "Task created successfully", HttpStatus.OK.value());
     }
+
+    @PatchMapping("/updateTask")
+    public ApiResponse<Map<String,Object>> updateTask(
+            HttpServletRequest httpRequest,
+             @Valid @RequestBody UpdateTaskValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.updateTask(user,body);
+        return ApiResponse.success(response, "Task updated successfully", HttpStatus.OK.value());
+    }
+
 }
