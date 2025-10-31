@@ -3,10 +3,7 @@ package com.taskify.backend.controllers.project;
 import com.taskify.backend.models.auth.User;
 import com.taskify.backend.services.project.TaskService;
 import com.taskify.backend.utils.ApiResponse;
-import com.taskify.backend.validators.project.GetTaskQueryValidator;
-import com.taskify.backend.validators.project.TaskValidator;
-import com.taskify.backend.validators.project.UpdateMemberValidator;
-import com.taskify.backend.validators.project.UpdateTaskValidator;
+import com.taskify.backend.validators.project.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +48,16 @@ public class TaskController {
         User user = (User) httpRequest.getAttribute("user");
         Map<String,Object> response = taskService.getTask(user,query);
         return ApiResponse.success(response, "Task retrieved successfully", HttpStatus.OK.value());
+    }
+
+    @GetMapping("/getTasks")
+    public ApiResponse<Map<String,Object>> getTasks(
+            HttpServletRequest httpRequest,
+            @Valid @ModelAttribute GetTasksValidator query
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.getTasks(user,query);
+        return ApiResponse.success(response, "Tasks retrieved successfully", HttpStatus.OK.value());
     }
 
 }

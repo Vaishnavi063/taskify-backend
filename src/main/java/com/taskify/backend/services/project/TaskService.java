@@ -9,12 +9,10 @@ import com.taskify.backend.models.project.Comment;
 import com.taskify.backend.models.project.Member;
 import com.taskify.backend.models.project.Project;
 import com.taskify.backend.models.project.Task;
-import com.taskify.backend.repository.project.CommentRepository;
-import com.taskify.backend.repository.project.MemberRepository;
-import com.taskify.backend.repository.project.ProjectRepository;
-import com.taskify.backend.repository.project.TaskRepository;
+import com.taskify.backend.repository.project.*;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.GetTaskQueryValidator;
+import com.taskify.backend.validators.project.GetTasksValidator;
 import com.taskify.backend.validators.project.TaskValidator;
 import com.taskify.backend.validators.project.UpdateTaskValidator;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -191,6 +188,27 @@ public class TaskService {
 
         return Map.of(
                 "task", task
+        );
+    }
+
+    public Map<String,Object> getTasks(User user, GetTasksValidator query){
+        String userId = user.getId();
+        String projectId = query.getProjectId();
+        log.info("Getting tasks for user {} project {}", userId, projectId);
+        log.info("Getting task for query {}", query);
+
+        Optional<Member> memberOpt = memberRepository.findByUserIdAndProjectId(userId, projectId);
+        if (memberOpt.isEmpty()) {
+            throw new ApiException("Member not found", 404);
+        }
+        Member member = memberOpt.get();
+        String memberId = member.getId();
+
+        List<Map<String, Object>> tasks = taskRepository.getTasks(projectId,memberId,query);
+        log.info("Successfully fetched {} tasks for user {}", tasks.size(), userId);
+
+        return Map.of(
+                "tasks", tasks
         );
     }
 }
