@@ -60,4 +60,14 @@ public class TaskController {
         return ApiResponse.success(response, "Tasks retrieved successfully", HttpStatus.OK.value());
     }
 
+    @PatchMapping("/changeStatus")
+    public ApiResponse<Map<String,Object>> changeStatus(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody ChangeStatusValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.changeStatus(user,body);
+        return ApiResponse.success(response, "Task status changed successfully", HttpStatus.OK.value());
+    }
+
 }

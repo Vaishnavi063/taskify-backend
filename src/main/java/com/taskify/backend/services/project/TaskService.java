@@ -11,10 +11,7 @@ import com.taskify.backend.models.project.Project;
 import com.taskify.backend.models.project.Task;
 import com.taskify.backend.repository.project.*;
 import com.taskify.backend.utils.ApiException;
-import com.taskify.backend.validators.project.GetTaskQueryValidator;
-import com.taskify.backend.validators.project.GetTasksValidator;
-import com.taskify.backend.validators.project.TaskValidator;
-import com.taskify.backend.validators.project.UpdateTaskValidator;
+import com.taskify.backend.validators.project.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
@@ -24,6 +21,7 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -331,6 +329,51 @@ public class TaskService {
         List<Document> tasks = mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
 
         return tasks;
+    }
+
+    public Map<String, Object> changeStatus(User user, ChangeStatusValidator body) {
+        log.info("Changing status of task {} by user {}", body.getTaskId(), user.getId());
+
+        String userId = user.getId();
+        String taskId = body.getTaskId();
+        TaskStatus newStatus = body.getStatus();
+
+        // 1️⃣ Get existing task
+        Task existingTask = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, existingTask.getProjectId())
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        TaskStatus oldStatus = existingTask.getStatus();
+        existingTask.setStatus(newStatus);
+
+        if (TaskStatus.COMPLETED.equals(oldStatus)) {
+            existingTask.setCompletedDate(LocalDate.now());
+        }
+
+        taskRepository.save(existingTask);
+
+        Comment statusComment = new Comment();
+        statusComment.setContent("Updated status: " + oldStatus + " → " + newStatus);
+        statusComment.setMemberId(member.getId());
+        statusComment.setCommentType(CommentType.STATUS_UPDATED);
+        statusComment.setCreatedAt(Instant.now());
+
+        Comment createdComment = commentRepository.save(statusComment);
+
+        if (existingTask.getComments() == null) {
+            existingTask.setComments(new ArrayList<>());
+        }
+        existingTask.getComments().add(createdComment.getId());
+
+        taskRepository.save(existingTask);
+
+        log.info("Status updated successfully for task {}: {} → {}", taskId, oldStatus, newStatus);
+
+        return Map.of(
+                "taskId", taskId
+        );
     }
 
 }
