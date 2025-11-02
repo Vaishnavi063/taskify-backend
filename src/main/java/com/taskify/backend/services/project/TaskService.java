@@ -218,11 +218,7 @@ public class TaskService {
                 "tasks", tasks
         );
     }
-
-    /**
-     * 🔧 Core method for fetching tasks with MongoDB aggregation pipeline
-     * Applies multiple filters, lookups, and transformations
-     */
+    
     public List<Document> getTasksByProjectIdAndMemberId(String projectId, String memberId, GetTasksValidator filters) {
 
         String title = filters.getTitle();
