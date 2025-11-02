@@ -218,7 +218,7 @@ public class TaskService {
                 "tasks", tasks
         );
     }
-    
+
     public List<Document> getTasksByProjectIdAndMemberId(String projectId, String memberId, GetTasksValidator filters) {
 
         String title = filters.getTitle();
