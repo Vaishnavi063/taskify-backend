@@ -52,7 +52,7 @@ public class TaskService {
         Project project = projectOpt.get();
         log.info("Creating task project {}", project);
 
-        Optional<Member>  memberOpt = memberRepository.findByUserIdAndProjectId(userId, task.getProjectId());
+        Optional<Member> memberOpt = memberRepository.findByUserIdAndProjectId(userId, task.getProjectId());
         if (memberOpt.isEmpty()) {
             throw new ApiException("Member not found", 404);
         }
@@ -178,7 +178,7 @@ public class TaskService {
         }
         Member member = memberOpt.get();
 
-        Optional<Project>  projectOpt = projectRepository.findById(projectId);
+        Optional<Project> projectOpt = projectRepository.findById(projectId);
         if (projectOpt.isEmpty()) {
             throw new ApiException("Project not found", 404);
         }
@@ -210,122 +210,131 @@ public class TaskService {
         String memberId = member.getId();
 
         // Fetch tasks with applied filters
-        List<Map<String, Object>> tasks = getTasksByProjectIdAndMemberId(projectId, memberId, query);
+        List<Document> tasks = getTasksByProjectIdAndMemberId(projectId, memberId, query);
 
         log.info("Successfully fetched {} tasks for user {}", tasks.size(), userId);
 
         return Map.of(
-                "tasks", tasks,
-                "count", tasks.size()
+                "tasks", tasks
         );
     }
 
     /**
      * 🔧 Core method for fetching tasks with MongoDB aggregation pipeline
      * Applies multiple filters, lookups, and transformations
-     *
-     * Pipeline stages:
-     * 1. Match - Filter by project and criteria
-     * 2. Convert - Convert string IDs to ObjectId
-     * 3. Lookup - Join with members and users collections
-     * 4. Unwind - Flatten arrays
-     * 5. AddFields - Enrich with calculated fields
-     * 6. Project - Select final fields
-     * 7. Sort - Order results
      */
-    /**
-     * 🔧 Core aggregation pipeline for fetching tasks
-     */
-    public List<Map<String, Object>> getTasksByProjectIdAndMemberId(
-            String projectId, String memberId, GetTasksValidator query) {
+    public List<Document> getTasksByProjectIdAndMemberId(String projectId, String memberId, GetTasksValidator filters) {
 
-        List<AggregationOperation> operations = new ArrayList<>();
+        String title = filters.getTitle();
+        boolean createdByMe = filters.getCreatedByMe();
+        boolean assignedToMe = filters.getAssignedToMe();
+        String priority = filters.getPriority();
+        String status = filters.getStatus();
+        boolean sortByCreated = filters.getSortByCreated();
 
-        // ✅ 1️⃣ MATCH STAGE
+        Date today = new Date();
+        today.setHours(0);
+        today.setMinutes(0);
+        today.setSeconds(0);
+        today.setTime(today.getTime() - (today.getTime() % 1000));
+
+        // Build match criteria
         Criteria criteria = Criteria.where("projectId").is(projectId)
-                .orOperator(
-                        Criteria.where("isDeleted").is(false),
-                        Criteria.where("isDeleted").exists(false)
-                );
+                .and("isDeleted").is(false)
+                .and("title").regex(title != null ? title : "", "i");
 
-        if (query.getStatus() != null && !query.getStatus().isEmpty()) {
-            criteria.and("status").is(query.getStatus());
-        }
-        if (query.getPriority() != null && !query.getPriority().isEmpty()) {
-            criteria.and("priority").is(query.getPriority());
-        }
-        if (query.getTitle() != null && !query.getTitle().isEmpty()) {
-            criteria.and("title").regex(query.getTitle(), "i");
-        }
-        if (query.isCreatedByMe()) {
-            criteria.and("userId").is(memberId);
-        }
-        if (query.isAssignedToMe()) {
+        if (createdByMe) {
             criteria.and("memberId").is(memberId);
         }
 
-        operations.add(Aggregation.match(criteria));
+        if (assignedToMe) {
+            criteria.and("assignees").in(memberId);
+        }
 
-        // ✅ 2️⃣ ADD FIELDS - Convert IDs to ObjectId
-        operations.add(Aggregation.addFields()
-                .addFieldWithValue("memberIdObj",
-                        ConvertOperators.ToObjectId.toObjectId("$memberId"))
-                .addFieldWithValue("userIdObj",
-                        ConvertOperators.ToObjectId.toObjectId("$userId"))
-                .build());
+        if (priority != null && !priority.isEmpty()) {
+            criteria.and("priority").is(priority);
+        }
 
-        // ✅ 3️⃣ LOOKUP - Members
-        operations.add(Aggregation.lookup("members", "memberIdObj", "_id", "memberDetails"));
-        operations.add(Aggregation.unwind("memberDetails", true));
+        if (status != null && !status.isEmpty()) {
+            criteria.and("status").is(status);
+        }
 
-        // ✅ 4️⃣ LOOKUP - Users (for creator info)
-        operations.add(Aggregation.addFields()
-                .addFieldWithValue("creatorUserIdObj",
-                        ConvertOperators.ToObjectId.toObjectId("$memberDetails.userId"))
-                .build());
-        operations.add(Aggregation.lookup("users", "creatorUserIdObj", "_id", "creatorUserDetails"));
-        operations.add(Aggregation.unwind("creatorUserDetails", true));
+        // Aggregation pipeline
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(criteria),
 
-        // ✅ 5️⃣ LOOKUP - Assignees
-        operations.add(Aggregation.lookup("members", "assignees", "_id", "membersDetails"));
+                // FIX 1: Convert Task.memberId (String) to ObjectId for lookup
+                Aggregation.addFields()
+                        .addField("memberObjectId").withValue(
+                                new Document("$convert", new Document("input", "$memberId")
+                                        .append("to", "objectId")
+                                        .append("onError", "$memberId")
+                                )
+                        ).build(),
 
-        // ✅ 6️⃣ ADD FIELDS - Construct creator object BEFORE projection
-        // 🔴 FIX: Build the creator object in addFields() stage
-        operations.add(Aggregation.addFields()
-                .addFieldWithValue("creator",
-                        new Document()
-                                .append("memberId", new Document("$toString", "$memberDetails._id"))
-                                .append("email", "$memberDetails.email")
-                                .append("role", "$memberDetails.role")
-                                .append("fullName", "$creatorUserDetails.fullName")
-                )
-                .addFieldWithValue("members",
-                        ArrayOperators.ArrayElemAt.arrayOf("$membersDetails").elementAt(0))
-                .addFieldWithValue("commentCount",
-                        ArrayOperators.Size.lengthOfArray(
-                                ConditionalOperators.ifNull("$comments").then(Collections.emptyList())))
-                .build());
+                // Lookup creator (member) using the converted ObjectId
+                Aggregation.lookup("members", "memberObjectId", "_id", "creator"),
+                Aggregation.unwind("creator", true),
 
-        // ✅ 7️⃣ PROJECT - Select final fields
-        operations.add(Aggregation.project()
-                .and(ConvertOperators.ToString.toString("$_id")).as("_id")
-                .andInclude("projectId", "title", "description", "status", "priority",
-                        "taskType", "taskNumber", "isDeleted", "dueDate", "tags",
-                        "completedDate", "subTasks", "creator", "members", "commentCount"));
+                // FIX 2: Convert creator.userId (String) to ObjectId for lookup
+                Aggregation.addFields()
+                        .addField("userObjectId").withValue(
+                                new Document("$convert", new Document("input", "$creator.userId")
+                                        .append("to", "objectId")
+                                        .append("onError", "$creator.userId")
+                                )
+                        ).build(),
 
-        // ✅ 8️⃣ SORT
-        operations.add(Aggregation.sort(Sort.by(Sort.Direction.DESC, "createdAt")));
+                // Lookup user details using the converted ObjectId
+                Aggregation.lookup("users", "userObjectId", "_id", "user"),
+                Aggregation.unwind("user", true),
 
-        Aggregation aggregation = Aggregation.newAggregation(operations);
+                // Lookup assignees (members)
+                Aggregation.lookup("members", "assignees", "_id", "membersDetails"),
 
-        log.info("Executing aggregation pipeline with {} operations", operations.size());
+                // Add members array and comment count
+                Aggregation.addFields()
+                        .addFieldWithValue("members",
+                                new Document("$map", new Document("input", "$membersDetails")
+                                        .append("as", "member")
+                                        .append("in", new Document("_id", "$$member._id")
+                                                .append("email", "$$member.email"))))
+                        .addFieldWithValue("commentCount", new Document("$size", "$comments"))
+                        .build(),
 
-        List<Map<String, Object>> results = (List<Map<String, Object>>) (List<?>)
-                mongoTemplate.aggregate(aggregation, "tasks", Map.class).getMappedResults();
+                // Project final fields: Explicitly convert BSON ObjectIds to Strings
+                // Project final fields: Explicitly convert BSON ObjectIds to Strings
+                Aggregation.project("projectId", "title", "description", "status", "priority",
+                                // 🌟 Fields confirmed to be included:
+                                "dueDate", "completedDate", "subTasks", "taskType", "taskNumber",
+                                "isDeleted", "comments", "members", "commentCount", "createdAt")
 
-        log.info("Aggregation completed. Retrieved {} results", results.size());
+                        // FIX 4: Convert the root BSON _id to a String
+                        .andExpression("{$toString: '$_id'}").as("_id")
 
-        return results;
+                        // FIX 5: Convert the creator BSON _id (memberId) to a String
+                        .andExpression("{$toString: '$creator._id'}").as("creator.memberId")
+
+                        // Map other Creator details (Includes Avatar)
+                        .and("creator.email").as("creator.email")
+                        .and("creator.role").as("creator.role")
+                        .and("user.fullName").as("creator.fullName")
+                        .and("user.avatar").as("creator.avatar"), // <-- Avatar mapping confirmed
+
+                // Sort by createdAt
+                Aggregation.sort(sortByCreated ? Sort.Direction.ASC : Sort.Direction.DESC, "createdAt"),
+
+                // Add isMember flag
+                Aggregation.addFields()
+                        .addFieldWithValue("isMember",
+                                new Document("$in", Arrays.asList(memberId, "$members._id")))
+                        .build()
+        );
+
+        // Execute aggregation
+        List<Document> tasks = mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
+
+        return tasks;
     }
 
 }
