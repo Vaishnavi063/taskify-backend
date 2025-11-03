@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 
 
@@ -362,8 +364,10 @@ public class TaskService {
 
         Comment createdComment = commentRepository.save(statusComment);
 
-        if (existingTask.getComments() == null) {
-            existingTask.setComments(new ArrayList<>());
+        if (TaskStatus.COMPLETED.equals(newStatus)) {
+            existingTask.setCompletedDate(LocalDate.now());
+        } else {
+            existingTask.setCompletedDate(null);
         }
         existingTask.getComments().add(createdComment.getId());
 
@@ -375,5 +379,98 @@ public class TaskService {
                 "taskId", taskId
         );
     }
+
+    public Map<String,Object> getMembersCompletedTasks(User user, ValidateProjectIdQuery body) {
+        log.info("user info {}", user);
+        log.info("getMembersCompletedTasks {}", body);
+
+        String projectId = body.getProjectId();
+
+        projectRepository.findById(body.getProjectId())
+                .orElseThrow(() -> new ApiException("Project not found", 404));
+
+        List<Map<String, Object>> details = taskRepository.getMembersCompletedTasksForCurrentMonth(projectId);
+
+        return Map.of(
+                "details", details
+        );
+    }
+
+    public List<Map<String, Object>> getCompletedTasksMember(User user, ValidateProjectIdQuery body) {
+        String projectId = body.getProjectId();
+        log.info("Fetching completed tasks for project {} by user {}", projectId, user.getId());
+
+        // Ensure project exists (Good practice, kept as-is)
+        projectRepository.findById(projectId)
+                .orElseThrow(() -> new ApiException("Project not found", 404));
+
+        // 1️⃣ Calculate start and end of current month (more robust logic)
+        LocalDate now = LocalDate.now();
+
+        // Start of the current month (e.g., Nov 1, 2025, 00:00:00 IST)
+        LocalDate firstDay = now.with(TemporalAdjusters.firstDayOfMonth());
+        Instant startOfMonth = firstDay.atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+        // Start of the NEXT month (e.g., Dec 1, 2025, 00:00:00 IST)
+        // Using $lt (less than) the next month's start is safer than $lte last day of month.
+        LocalDate firstDayOfNextMonth = now.with(TemporalAdjusters.firstDayOfNextMonth());
+        Instant startOfNextMonth = firstDayOfNextMonth.atStartOfDay(ZoneId.systemDefault()).toInstant();
+
+
+        // 2️⃣ Define aggregation pipeline stages
+        MatchOperation matchStage = Aggregation.match(Criteria.where("projectId").is(projectId)
+                .and("status").is(TaskStatus.COMPLETED.name())
+                // Use $gte (start) and $lt (next start) for precise date filtering
+                .and("completedDate").gte(startOfMonth).lt(startOfNextMonth));
+
+        UnwindOperation unwindAssignees = Aggregation.unwind("assignees");
+        GroupOperation groupByAssignee = Aggregation.group("assignees").count().as("completedTasksCount");
+        LookupOperation lookupMembers = Aggregation.lookup("members", "_id", "_id", "member");
+        UnwindOperation unwindMember = Aggregation.unwind("member");
+        LookupOperation lookupUsers = Aggregation.lookup("users", "member.userId", "_id", "user");
+        UnwindOperation unwindUser = Aggregation.unwind("user");
+
+        // 🌟 FINAL FIX: Using Aggregation.stage() for complex nested projection
+        AggregationOperation projectStage = Aggregation.stage(new Document("$project", new Document()
+                .append("_id", 0)
+                .append("memberId", "$_id")
+                .append("completedTasksCount", 1)
+                .append("user", new Document() // Nested 'user' object structure
+                        .append("email", "$user.email")
+                        .append("role", "$member.role")
+                        .append("fullName", "$user.fullName")
+                        .append("avatar", "$user.avatar")
+                )
+        ));
+
+        SortOperation sortStage = Aggregation.sort(Sort.Direction.DESC, "completedTasksCount");
+
+        // 3️⃣ Combine stages
+        Aggregation aggregation = Aggregation.newAggregation(
+                matchStage,
+                unwindAssignees,
+                groupByAssignee,
+                lookupMembers,
+                unwindMember,
+                lookupUsers,
+                unwindUser,
+                projectStage,
+                sortStage
+        );
+
+        // 4️⃣ Execute
+        AggregationResults<Document> results =
+                mongoTemplate.aggregate(aggregation, "tasks", Document.class);
+
+        List<Map<String, Object>> membersStats = results.getMappedResults()
+                .stream()
+                .map(doc -> (Map<String, Object>) doc)
+                .toList();
+
+        log.info("Completed task stats: {}", membersStats);
+
+        return membersStats;
+    }
+
 
 }

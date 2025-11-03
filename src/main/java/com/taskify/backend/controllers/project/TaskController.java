@@ -70,4 +70,14 @@ public class TaskController {
         return ApiResponse.success(response, "Task status changed successfully", HttpStatus.OK.value());
     }
 
+    @GetMapping("/getMembersCompletedTasks")
+    public ApiResponse<Map<String,Object>> getMembersCompletedTasks(
+            HttpServletRequest httpRequest,
+            @Valid @ModelAttribute ValidateProjectIdQuery query
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.getMembersCompletedTasks(user,query);
+        return ApiResponse.success(response, "Get user completed tasks successfully", HttpStatus.OK.value());
+    }
+
 }

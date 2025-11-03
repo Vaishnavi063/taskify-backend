@@ -50,4 +50,73 @@ public interface TaskRepository extends MongoRepository<Task, String> {
                     "} }"
     })
     Optional<Map<String, Object>> getTaskByIdAndMemberId(String taskId, String memberId);
+
+    @Aggregation(pipeline = {
+            // 1️⃣ Match: Only completed tasks for this project and month
+            "{ $match: { " +
+                    "projectId: ?0, " +
+                    "status: 'COMPLETED', " +
+                    "$expr: { " +
+                    "  $and: [ " +
+                    "    { $eq: [ { $month: '$completedDate' }, { $month: new Date() } ] }, " +
+                    "    { $eq: [ { $year: '$completedDate' }, { $year: new Date() } ] } " +
+                    "  ] " +
+                    "} " +
+                    "} }",
+
+            // 2️⃣ Unwind assignees array (ignore empty)
+            "{ $unwind: { path: '$assignees', preserveNullAndEmptyArrays: false } }",
+
+            // 3️⃣ Group by assignee to count completed tasks
+            "{ $group: { _id: '$assignees', completedTasksCount: { $sum: 1 } } }",
+
+            // 4️⃣ Convert to ObjectId for lookups
+            "{ $addFields: { " +
+                    "memberIdString: '$_id', " +
+                    "memberIdObj: { $convert: { input: '$_id', to: 'objectId', onError: null, onNull: null } } " +
+                    "} }",
+
+            // 5️⃣ Lookup member details
+            "{ $lookup: { " +
+                    "from: 'members', " +
+                    "localField: 'memberIdObj', " +
+                    "foreignField: '_id', " +
+                    "as: 'memberDetails' " +
+                    "} }",
+            "{ $unwind: { path: '$memberDetails', preserveNullAndEmptyArrays: false } }",
+
+            // 6️⃣ Convert userId string to ObjectId
+            "{ $addFields: { " +
+                    "userIdObj: { $convert: { input: '$memberDetails.userId', to: 'objectId', onError: null, onNull: null } } " +
+                    "} }",
+
+            // 7️⃣ Lookup user details
+            "{ $lookup: { " +
+                    "from: 'users', " +
+                    "localField: 'userIdObj', " +
+                    "foreignField: '_id', " +
+                    "as: 'userDetails' " +
+                    "} }",
+            "{ $unwind: { path: '$userDetails', preserveNullAndEmptyArrays: false } }",
+
+            // 8️⃣ Final projection (clean format)
+            "{ $project: { " +
+                    "_id: 0, " +
+                    "memberId: '$memberIdString', " +
+                    "completedTasksCount: 1, " +
+                    "user: { " +
+                    "fullName: '$userDetails.fullName', " +
+                    "email: '$userDetails.email', " +
+                    "avatar: '$userDetails.avatar', " +
+                    "role: '$memberDetails.role' " +
+                    "} " +
+                    "} }",
+
+            // 9️⃣ Sort by completed count descending
+            "{ $sort: { completedTasksCount: -1 } }"
+    })
+    List<Map<String, Object>> getMembersCompletedTasksForCurrentMonth(String projectId);
+
+
+
 }
