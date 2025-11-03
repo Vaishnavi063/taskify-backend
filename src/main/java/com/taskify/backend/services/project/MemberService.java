@@ -17,6 +17,7 @@ import com.taskify.backend.validators.project.*;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -38,6 +39,9 @@ public class MemberService {
     private final UserRepository userRepository;
     private final TokenService tokenService;
     private final NotificationService notificationService;
+
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     public GetMembersResponseDto getMembers(User user, GetMembersQuery query) {
         log.info("Getting members for user {}", user);
@@ -194,7 +198,7 @@ public class MemberService {
 
         String inviteToken = tokenService.signToken(payload, EXP);
 
-        String invitationLink = "https://frontend-url.com/guidance/invitation?invitationToken=" + inviteToken +
+        String invitationLink = frontendUrl + "/guidance/invitation?invitationToken=" + inviteToken +
                 "&projectName=" + project.getName() +
                 "&email=" + email;
 

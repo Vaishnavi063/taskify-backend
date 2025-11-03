@@ -209,7 +209,7 @@ public class UserService {
                 "fullName", user.getFullName()
         ),EXP);
 
-        String resetPasswordLink = frontendUrl + "/verify?token=" + resetPasswordToken;
+        String resetPasswordLink = frontendUrl + "/auth/reset-password?token=" + resetPasswordToken;
 
         Map<String, Object> templateVariables = new HashMap<>();
         templateVariables.put("fullName", user.getFullName());
