@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Map;
+import java.util.*;
 
 
 @RestController
@@ -71,13 +71,23 @@ public class TaskController {
     }
 
     @GetMapping("/getMembersCompletedTasks")
-    public ApiResponse<Map<String,Object>> getMembersCompletedTasks(
+    public ApiResponse<List<Map<String, Object>>> getMembersCompletedTasks(
+            HttpServletRequest httpRequest,
+            @Valid @ModelAttribute ValidateProjectIdQuery query
+    ) {
+        User user = (User) httpRequest.getAttribute("user");
+        List<Map<String, Object>> response = taskService.getMembersCompletedTasks(user, query);
+        return ApiResponse.success(response, "Get user completed tasks successfully", HttpStatus.OK.value());
+    }
+
+    @GetMapping("/getUserAssignedTasks")
+    public ApiResponse<Map<String,Object>> getUserAssignedTasks(
             HttpServletRequest httpRequest,
             @Valid @ModelAttribute ValidateProjectIdQuery query
     ){
         User user = (User) httpRequest.getAttribute("user");
-        Map<String,Object> response = taskService.getMembersCompletedTasks(user,query);
-        return ApiResponse.success(response, "Get user completed tasks successfully", HttpStatus.OK.value());
+        Map<String,Object> response = taskService.getUserAssignedTasks(user,query);
+        return ApiResponse.success(response, "Get assigned tasks successfully", HttpStatus.OK.value());
     }
 
 }

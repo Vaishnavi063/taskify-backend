@@ -380,7 +380,7 @@ public class TaskService {
         );
     }
 
-    public Map<String,Object> getMembersCompletedTasks(User user, ValidateProjectIdQuery body) {
+    public List<Map<String, Object>> getMembersCompletedTasks(User user, ValidateProjectIdQuery body) {
         log.info("user info {}", user);
         log.info("getMembersCompletedTasks {}", body);
 
@@ -389,87 +389,46 @@ public class TaskService {
         projectRepository.findById(body.getProjectId())
                 .orElseThrow(() -> new ApiException("Project not found", 404));
 
-        List<Map<String, Object>> details = taskRepository.getMembersCompletedTasksForCurrentMonth(projectId);
-
-        return Map.of(
-                "details", details
-        );
+        return taskRepository.getMembersCompletedTasksForCurrentMonth(projectId);
     }
 
-    public List<Map<String, Object>> getCompletedTasksMember(User user, ValidateProjectIdQuery body) {
-        String projectId = body.getProjectId();
-        log.info("Fetching completed tasks for project {} by user {}", projectId, user.getId());
 
-        // Ensure project exists (Good practice, kept as-is)
-        projectRepository.findById(projectId)
-                .orElseThrow(() -> new ApiException("Project not found", 404));
+    public Map<String, Object> getUserAssignedTasks(User user, ValidateProjectIdQuery query) {
+        String userId = user.getId();
+        String projectId = query.getProjectId();
 
-        // 1️⃣ Calculate start and end of current month (more robust logic)
-        LocalDate now = LocalDate.now();
+        log.info("getUserAssignedTasks called for userId={} projectId={}", userId, projectId);
 
-        // Start of the current month (e.g., Nov 1, 2025, 00:00:00 IST)
-        LocalDate firstDay = now.with(TemporalAdjusters.firstDayOfMonth());
-        Instant startOfMonth = firstDay.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found for user in project", 404));
 
-        // Start of the NEXT month (e.g., Dec 1, 2025, 00:00:00 IST)
-        // Using $lt (less than) the next month's start is safer than $lte last day of month.
-        LocalDate firstDayOfNextMonth = now.with(TemporalAdjusters.firstDayOfNextMonth());
-        Instant startOfNextMonth = firstDayOfNextMonth.atStartOfDay(ZoneId.systemDefault()).toInstant();
+        String memberId = member.getId();
 
+        List<Map<String, Object>> assignedTasks = taskRepository.getUserAssignedTasks(memberId, projectId);
 
-        // 2️⃣ Define aggregation pipeline stages
-        MatchOperation matchStage = Aggregation.match(Criteria.where("projectId").is(projectId)
-                .and("status").is(TaskStatus.COMPLETED.name())
-                // Use $gte (start) and $lt (next start) for precise date filtering
-                .and("completedDate").gte(startOfMonth).lt(startOfNextMonth));
-
-        UnwindOperation unwindAssignees = Aggregation.unwind("assignees");
-        GroupOperation groupByAssignee = Aggregation.group("assignees").count().as("completedTasksCount");
-        LookupOperation lookupMembers = Aggregation.lookup("members", "_id", "_id", "member");
-        UnwindOperation unwindMember = Aggregation.unwind("member");
-        LookupOperation lookupUsers = Aggregation.lookup("users", "member.userId", "_id", "user");
-        UnwindOperation unwindUser = Aggregation.unwind("user");
-
-        // 🌟 FINAL FIX: Using Aggregation.stage() for complex nested projection
-        AggregationOperation projectStage = Aggregation.stage(new Document("$project", new Document()
-                .append("_id", 0)
-                .append("memberId", "$_id")
-                .append("completedTasksCount", 1)
-                .append("user", new Document() // Nested 'user' object structure
-                        .append("email", "$user.email")
-                        .append("role", "$member.role")
-                        .append("fullName", "$user.fullName")
-                        .append("avatar", "$user.avatar")
-                )
-        ));
-
-        SortOperation sortStage = Aggregation.sort(Sort.Direction.DESC, "completedTasksCount");
-
-        // 3️⃣ Combine stages
-        Aggregation aggregation = Aggregation.newAggregation(
-                matchStage,
-                unwindAssignees,
-                groupByAssignee,
-                lookupMembers,
-                unwindMember,
-                lookupUsers,
-                unwindUser,
-                projectStage,
-                sortStage
-        );
-
-        // 4️⃣ Execute
-        AggregationResults<Document> results =
-                mongoTemplate.aggregate(aggregation, "tasks", Document.class);
-
-        List<Map<String, Object>> membersStats = results.getMappedResults()
-                .stream()
-                .map(doc -> (Map<String, Object>) doc)
+        List<String> availableStatuses = List.of("TODO", "IN_PROGRESS", "UNDER_REVIEW" ,"COMPLETED");
+        List<Map<String, Object>> tasksByStatus = availableStatuses.stream()
+                .map(status -> {
+                    Map<String, Object> found = assignedTasks.stream()
+                            .filter(t -> t.get("status").equals(status))
+                            .findFirst()
+                            .orElse(Map.of("status", status, "count", 0));
+                    return Map.of(
+                            "status", found.get("status"),
+                            "count", found.get("count")
+                    );
+                })
                 .toList();
 
-        log.info("Completed task stats: {}", membersStats);
+        // 4️⃣ Fetch tasks created by this user (via memberId)
+        Map<String, Object> createdTasks = taskRepository.getUserCreatedTask(memberId)
+                .orElse(Map.of("taskCount", 0));
 
-        return membersStats;
+        // 5️⃣ Return final combined response
+        return Map.of(
+                "tasks", tasksByStatus,
+                "createdTasks", createdTasks
+        );
     }
 
 

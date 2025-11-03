@@ -117,6 +117,27 @@ public interface TaskRepository extends MongoRepository<Task, String> {
     })
     List<Map<String, Object>> getMembersCompletedTasksForCurrentMonth(String projectId);
 
+    @Aggregation(pipeline = {
+            "{ $match: { " +
+                    "projectId: ?1, " +
+                    "'assignees': ?0, " +
+                    "$or: [ { isDeleted: false }, { isDeleted: { $exists: false } } ] " +
+                    "} }",
+            "{ $group: { _id: '$status', count: { $sum: 1 } } }",
+            "{ $project: { _id: 0, status: '$_id', count: 1 } }"
+    })
+    List<Map<String, Object>> getUserAssignedTasks(String memberId, String projectId);
+
+    @Aggregation(pipeline = {
+            "{ $match: { " +
+                    "memberId: ?0, " +
+                    "$or: [ { isDeleted: false }, { isDeleted: { $exists: false } } ] " +
+                    "} }",
+            "{ $group: { _id: '$memberId', taskCount: { $sum: 1 } } }",
+            "{ $project: { _id: 0, memberId: '$_id', taskCount: 1 } }"
+    })
+    Optional<Map<String, Object>> getUserCreatedTask(String memberId);
+
 
 
 }
