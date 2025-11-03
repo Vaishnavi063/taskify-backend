@@ -5,6 +5,5 @@ import lombok.Data;
 
 @Data
 public class ValidateProjectIdQuery {
-    @NotEmpty(message = "Project ID is required")
     private String projectId;
 }

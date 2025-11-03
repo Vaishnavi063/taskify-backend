@@ -399,14 +399,27 @@ public class TaskService {
 
         log.info("getUserAssignedTasks called for userId={} projectId={}", userId, projectId);
 
-        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
-                .orElseThrow(() -> new ApiException("Member not found for user in project", 404));
+        // If projectId is provided, fetch the member in that project
+        Member member = null;
+        if (projectId != null && !projectId.isEmpty()) {
+            member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                    .orElseThrow(() -> new ApiException("Member not found for user in project", 404));
+        }
 
-        String memberId = member.getId();
+        String memberId = member != null ? member.getId() : null;
 
-        List<Map<String, Object>> assignedTasks = taskRepository.getUserAssignedTasks(memberId, projectId);
+        // Fetch assigned tasks
+        List<Map<String, Object>> assignedTasks;
+        if (memberId != null) {
+            // If projectId is provided, filter by project
+            assignedTasks = taskRepository.getUserAssignedTasks(memberId, projectId);
+        } else {
+            List<Member> members = memberRepository.findByUserIdAndInvitationStatus(userId, InvitationStatus.ACCEPTED);
+            List<String> memberIds = members.stream().map(Member::getId).toList();
+            assignedTasks = taskRepository.getUserAssignedTasksAllProjects(memberIds);
+        }
 
-        List<String> availableStatuses = List.of("TODO", "IN_PROGRESS", "UNDER_REVIEW" ,"COMPLETED");
+        List<String> availableStatuses = List.of("TODO", "IN_PROGRESS", "UNDER_REVIEW", "COMPLETED");
         List<Map<String, Object>> tasksByStatus = availableStatuses.stream()
                 .map(status -> {
                     Map<String, Object> found = assignedTasks.stream()
@@ -420,16 +433,22 @@ public class TaskService {
                 })
                 .toList();
 
-        // 4️⃣ Fetch tasks created by this user (via memberId)
-        Map<String, Object> createdTasks = taskRepository.getUserCreatedTask(memberId)
-                .orElse(Map.of("taskCount", 0));
+        // Tasks created by the user (all projects)
+        Map<String, Object> createdTasks;
+        if (memberId != null) {
+            createdTasks = taskRepository.getUserCreatedTask(memberId).orElse(Map.of("taskCount", 0));
+        } else {
+            List<Member> members = memberRepository.findByUserIdAndInvitationStatus(userId, InvitationStatus.ACCEPTED);
+            List<String> memberIds = members.stream().map(Member::getId).toList();
+            createdTasks = taskRepository.getUserCreatedTaskAllProjects(memberIds).orElse(Map.of("taskCount", 0));
+        }
 
-        // 5️⃣ Return final combined response
         return Map.of(
                 "tasks", tasksByStatus,
                 "createdTasks", createdTasks
         );
     }
+
 
 
 }
