@@ -100,4 +100,14 @@ public class TaskController {
         return ApiResponse.success(response, "Get assigned tasks successfully", HttpStatus.OK.value());
     }
 
+    @PostMapping("/assignMember")
+    public ApiResponse<Map<String,Object>> assignMember(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody AssignMemberValidator  body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.assignMember(user,body);
+        return ApiResponse.success(response, "Assigned member successfully", HttpStatus.OK.value());
+    }
+
 }

@@ -10,15 +10,19 @@ import com.taskify.backend.models.project.Member;
 import com.taskify.backend.models.project.Project;
 import com.taskify.backend.models.project.Task;
 import com.taskify.backend.repository.project.*;
+import com.taskify.backend.services.shared.NotificationService;
 import com.taskify.backend.utils.ApiException;
 import com.taskify.backend.validators.project.*;
+import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.time.*;
@@ -35,7 +39,10 @@ public class TaskService {
     private final MemberRepository memberRepository;
     private final CommentRepository commentRepository;
     private final MongoTemplate mongoTemplate;
+    private final NotificationService notificationService;
 
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     public Map<String, Object> createTask(User user, TaskValidator task) {
         String userId = user.getId();
@@ -503,7 +510,80 @@ public class TaskService {
         return resultList;
     }
 
+    public Map<String, Object> assignMember(User user, AssignMemberValidator body){
+        String userId = user.getId();
+        String projectId = body.getProjectId();
+        String taskId = body.getTaskId();
+        String memberId = body.getMemberId();
 
+        log.info("User info {}",user);
+        log.info("Project info {}",body);
+
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ApiException("Project not found",404));
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found",404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found",404));
+
+        if (member.getRole().equals(MemberRole.MEMBER)) {
+            throw new ApiException("You are not allowed to assign members to tasks",403);
+        }
+
+        Member assignedMember = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ApiException("Assignee not found",404));
+
+        if (task.getAssignees() != null && task.getAssignees().contains(memberId)) {
+            throw new ApiException("Member is assigned already",400);
+        }
+
+        if (task.getAssignees() == null) {
+            task.setAssignees(new ArrayList<>());
+        }
+        task.getAssignees().add(memberId);
+        taskRepository.save(task);
+
+        String frontendTaskLink = String.format("%s/dashboard/workspace/%s/tasks/%s",
+                frontendUrl, projectId, taskId);
+
+        Map<String, Object> templateVariables = new HashMap<>();
+        templateVariables.put("assignee", assignedMember.getEmail());
+        templateVariables.put("projectAdminName", user.getFullName());
+        templateVariables.put("link", frontendTaskLink);
+
+        try {
+            notificationService.sendWithTemplate(
+                    assignedMember.getEmail(),
+                    "New Task Assigned to You",
+                    "assigned-task",
+                    templateVariables
+            );
+        } catch (MessagingException e) {
+            log.error("Failed to send assigned task email: {}", e.getMessage());
+            throw new ApiException("Failed to send assigned task email", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        }
+
+        Comment comment = new Comment();
+        comment.setContent("Assigned member: " + assignedMember.getEmail());
+        comment.setMemberId(member.getId());
+        comment.setCommentType(CommentType.ASSIGNED_MEMBER);
+        comment.setCreatedAt(Instant.now());
+        comment.setUpdatedAt(Instant.now());
+        comment = commentRepository.save(comment);
+
+        if (task.getComments() == null) {
+            task.setComments(new ArrayList<>());
+        }
+        task.getComments().add(comment.getId());
+        taskRepository.save(task);
+
+        return Map.of(
+                "taskId", taskId,
+                "memberId", memberId
+        );
+    }
 
 
 }
