@@ -328,7 +328,6 @@ public class TaskService {
         return mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
     }
 
-
     public Map<String, Object> changeStatus(User user, ChangeStatusValidator body) {
         log.info("Changing status of task {} by user {}", body.getTaskId(), user.getId());
 
@@ -575,5 +574,31 @@ public class TaskService {
         );
     }
 
+    public Map<String,Object> deleteTask(User user, ValidateTaskId query){
+        String userId = user.getId();
+        String projectId = query.getProjectId();
+        String taskId = query.getTaskId();
 
+        log.info("Deleting task: userId={}, taskId={}, projectId={}", userId, taskId, projectId);
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        if (member.getRole().equals(MemberRole.MEMBER)
+                && !task.getMemberId().equals(member.getId())) {
+            throw new ApiException("You are not allowed to delete this task", 403);
+        }
+
+        task.setIsDeleted(true);
+        taskRepository.save(task);
+
+        log.info("Task {} marked as deleted by user {}", taskId, userId);
+
+        return Map.of(
+                "taskId", taskId
+        );
+    }
 }

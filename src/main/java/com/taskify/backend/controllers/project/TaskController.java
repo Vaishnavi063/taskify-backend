@@ -110,4 +110,14 @@ public class TaskController {
         return ApiResponse.success(response, "Assigned member successfully", HttpStatus.OK.value());
     }
 
+    @DeleteMapping("/deleteTask")
+    public ApiResponse<Map<String,Object>> deleteTask(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody ValidateTaskId query
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.deleteTask(user,query);
+        return ApiResponse.success(response, "Deleted task successfully", HttpStatus.OK.value());
+    }
+
 }
