@@ -90,4 +90,14 @@ public class TaskController {
         return ApiResponse.success(response, "Get assigned tasks successfully", HttpStatus.OK.value());
     }
 
+    @GetMapping("/getLast30DaysTasks")
+    public ApiResponse<List<Map<String, Object>>> getLast30DaysTasks(
+            HttpServletRequest httpRequest,
+            @Valid @ModelAttribute ValidateProjectIdQuery query
+    ){
+        User user =  (User) httpRequest.getAttribute("user");
+        List<Map<String, Object>> response = taskService.getLast30DaysTasks(user,query);
+        return ApiResponse.success(response, "Get assigned tasks successfully", HttpStatus.OK.value());
+    }
+
 }

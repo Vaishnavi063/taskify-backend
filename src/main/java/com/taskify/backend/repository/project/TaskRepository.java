@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.repository.Aggregation;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -157,6 +158,30 @@ public interface TaskRepository extends MongoRepository<Task, String> {
             "{ $project: { _id: 0, taskCount: 1 } }"
     })
     Optional<Map<String, Object>> getUserCreatedTaskAllProjects(List<String> memberIds);
+
+    // Single project
+    @Aggregation(pipeline = {
+            "{ $match: { " +
+                    "projectId: ?1, " +
+                    "status: 'COMPLETED', " +
+                    "completedDate: { $gte: ?0 }, " +
+                    "$or: [ { isDeleted: false }, { isDeleted: { $exists: false } } ] " +
+                    "} }",
+            "{ $project: { completedDate: 1 } }"
+    })
+    List<Map<String, Object>> getLast30DaysTasksByProject(Date fromDate, String projectId);
+
+    // All projects
+    @Aggregation(pipeline = {
+            "{ $match: { " +
+                    "'assignees': { $in: ?1 }, " +
+                    "status: 'COMPLETED', " +
+                    "completedDate: { $gte: ?0 }, " +
+                    "$or: [ { isDeleted: false }, { isDeleted: { $exists: false } } ] " +
+                    "} }",
+            "{ $project: { completedDate: 1 } }"
+    })
+    List<Map<String, Object>> getLast30DaysTasksAllProjects(Date fromDate, List<String> memberIds);
 
 
 }

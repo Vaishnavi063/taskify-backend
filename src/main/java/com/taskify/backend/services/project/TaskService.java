@@ -21,10 +21,8 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
+import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 
@@ -448,6 +446,63 @@ public class TaskService {
                 "createdTasks", createdTasks
         );
     }
+
+    public List<Map<String, Object>> getLast30DaysTasks(User user, ValidateProjectIdQuery query) {
+        String userId = user.getId();
+        String projectId = query.getProjectId();
+
+        // 1️⃣ Calculate last 30 days range in UTC
+        ZonedDateTime todayUTC = ZonedDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        ZonedDateTime last30DaysUTC = todayUTC.minusDays(30);
+
+        Date fromDate = Date.from(last30DaysUTC.toInstant());
+        Date toDate = Date.from(todayUTC.toInstant());
+
+        // 2️⃣ Fetch member(s)
+        List<Member> members;
+        if (projectId != null && !projectId.isEmpty()) {
+            Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                    .orElseThrow(() -> new ApiException("Member not found for user in project", 404));
+            members = List.of(member);
+        } else {
+            members = memberRepository.findByUserIdAndInvitationStatus(userId, InvitationStatus.ACCEPTED);
+        }
+        List<String> memberIds = members.stream().map(Member::getId).toList();
+
+        // 3️⃣ Fetch tasks from repository
+        List<Map<String, Object>> tasks;
+        if (projectId != null && !projectId.isEmpty()) {
+            tasks = taskRepository.getLast30DaysTasksByProject(fromDate, projectId);
+        } else {
+            tasks = taskRepository.getLast30DaysTasksAllProjects(fromDate, memberIds);
+        }
+
+        // 4️⃣ Prepare map for last 30 days
+        Map<String, Long> resultMap = new LinkedHashMap<>();
+        for (int i = 0; i < 30; i++) {
+            LocalDate date = last30DaysUTC.toLocalDate().plusDays(i);
+            resultMap.put(date.toString(), 0L);
+        }
+
+        // 5️⃣ Count completed tasks per day (UTC)
+        tasks.forEach(task -> {
+            Date completedDate = (Date) task.get("completedDate");
+            LocalDate dateUTC = completedDate.toInstant().atZone(ZoneOffset.UTC).toLocalDate();
+            String key = dateUTC.toString();
+            resultMap.put(key, resultMap.getOrDefault(key, 0L) + 1);
+        });
+
+        // 6️⃣ Convert map to list
+        List<Map<String, Object>> resultList = resultMap.entrySet().stream()
+                .map(entry -> Map.<String, Object>of(
+                        "completedDate", entry.getKey(),
+                        "count", entry.getValue()
+                ))
+                .toList();
+
+        return resultList;
+    }
+
 
 
 
