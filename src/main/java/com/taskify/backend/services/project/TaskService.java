@@ -233,13 +233,6 @@ public class TaskService {
         String status = filters.getStatus();
         boolean sortByCreated = filters.getSortByCreated();
 
-        Date today = new Date();
-        today.setHours(0);
-        today.setMinutes(0);
-        today.setSeconds(0);
-        today.setTime(today.getTime() - (today.getTime() % 1000));
-
-        // Build match criteria
         Criteria criteria = Criteria.where("projectId").is(projectId)
                 .and("isDeleted").is(false)
                 .and("title").regex(title != null ? title : "", "i");
@@ -260,11 +253,10 @@ public class TaskService {
             criteria.and("status").is(status);
         }
 
-        // Aggregation pipeline
         Aggregation aggregation = Aggregation.newAggregation(
                 Aggregation.match(criteria),
 
-                // FIX 1: Convert Task.memberId (String) to ObjectId for lookup
+                // Convert memberId to ObjectId for creator lookup
                 Aggregation.addFields()
                         .addField("memberObjectId").withValue(
                                 new Document("$convert", new Document("input", "$memberId")
@@ -273,11 +265,10 @@ public class TaskService {
                                 )
                         ).build(),
 
-                // Lookup creator (member) using the converted ObjectId
                 Aggregation.lookup("members", "memberObjectId", "_id", "creator"),
                 Aggregation.unwind("creator", true),
 
-                // FIX 2: Convert creator.userId (String) to ObjectId for lookup
+                // Convert creator.userId to ObjectId for user lookup
                 Aggregation.addFields()
                         .addField("userObjectId").withValue(
                                 new Document("$convert", new Document("input", "$creator.userId")
@@ -286,43 +277,45 @@ public class TaskService {
                                 )
                         ).build(),
 
-                // Lookup user details using the converted ObjectId
                 Aggregation.lookup("users", "userObjectId", "_id", "user"),
                 Aggregation.unwind("user", true),
 
-                // Lookup assignees (members)
-                Aggregation.lookup("members", "assignees", "_id", "membersDetails"),
+                // ✅ Convert assignees (array of Strings) → ObjectIds for lookup
+                Aggregation.addFields()
+                        .addField("assigneeObjectIds").withValue(
+                                new Document("$map", new Document("input", "$assignees")
+                                        .append("as", "id")
+                                        .append("in", new Document("$convert", new Document("input", "$$id")
+                                                .append("to", "objectId")
+                                                .append("onError", "$$id")))
+                                )
+                        ).build(),
 
-                // Add members array and comment count
+                // ✅ Lookup members using converted ObjectIds
+                Aggregation.lookup("members", "assigneeObjectIds", "_id", "membersDetails"),
+
+                // ✅ Map members to simplified structure
                 Aggregation.addFields()
                         .addFieldWithValue("members",
                                 new Document("$map", new Document("input", "$membersDetails")
                                         .append("as", "member")
-                                        .append("in", new Document("_id", "$$member._id")
+                                        .append("in", new Document(
+                                                "_id", new Document("$toString", "$$member._id"))
                                                 .append("email", "$$member.email"))))
                         .addFieldWithValue("commentCount", new Document("$size", "$comments"))
                         .build(),
 
-                // Project final fields: Explicitly convert BSON ObjectIds to Strings
-                // Project final fields: Explicitly convert BSON ObjectIds to Strings
                 Aggregation.project("projectId", "title", "description", "status", "priority",
-                                // 🌟 Fields confirmed to be included:
                                 "dueDate", "completedDate", "subTasks", "taskType", "taskNumber",
                                 "isDeleted", "comments", "members", "commentCount", "createdAt")
 
-                        // FIX 4: Convert the root BSON _id to a String
                         .andExpression("{$toString: '$_id'}").as("_id")
-
-                        // FIX 5: Convert the creator BSON _id (memberId) to a String
                         .andExpression("{$toString: '$creator._id'}").as("creator.memberId")
-
-                        // Map other Creator details (Includes Avatar)
                         .and("creator.email").as("creator.email")
                         .and("creator.role").as("creator.role")
                         .and("user.fullName").as("creator.fullName")
-                        .and("user.avatar").as("creator.avatar"), // <-- Avatar mapping confirmed
+                        .and("user.avatar").as("creator.avatar"),
 
-                // Sort by createdAt
                 Aggregation.sort(sortByCreated ? Sort.Direction.ASC : Sort.Direction.DESC, "createdAt"),
 
                 // Add isMember flag
@@ -332,11 +325,9 @@ public class TaskService {
                         .build()
         );
 
-        // Execute aggregation
-        List<Document> tasks = mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
-
-        return tasks;
+        return mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
     }
+
 
     public Map<String, Object> changeStatus(User user, ChangeStatusValidator body) {
         log.info("Changing status of task {} by user {}", body.getTaskId(), user.getId());
@@ -396,7 +387,6 @@ public class TaskService {
 
         return taskRepository.getMembersCompletedTasksForCurrentMonth(projectId);
     }
-
 
     public Map<String, Object> getUserAssignedTasks(User user, ValidateProjectIdQuery query) {
         String userId = user.getId();
