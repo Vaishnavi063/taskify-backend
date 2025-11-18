@@ -188,7 +188,7 @@ public class TaskService {
             throw new ApiException("Project not found", 404);
         }
 
-        Optional<Map<String, Object>> taskOpt = taskRepository.getTaskByIdAndMemberId(taskId,member.getId());
+        Optional<Map<String, Object>> taskOpt = taskRepository.getTaskWithComments(taskId, member.getId());
         if (taskOpt.isEmpty()) {
             throw new ApiException("Task not found", 404);
         }

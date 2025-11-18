@@ -14,7 +14,7 @@ import java.util.Optional;
 
 
 @Repository
-public interface TaskRepository extends MongoRepository<Task, String> {
+public interface TaskRepository extends MongoRepository<Task, String>, TaskRepositoryCustom {
     Optional<Task> findTopByProjectIdOrderByTaskNumberDesc(String projectId);
 
     @Aggregation(pipeline = {
