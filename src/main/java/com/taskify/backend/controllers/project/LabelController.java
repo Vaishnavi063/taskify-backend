@@ -1,16 +1,15 @@
 package com.taskify.backend.controllers.project;
 
+import com.taskify.backend.dto.Label.GetLabelsResponseDto;
 import com.taskify.backend.models.auth.User;
-import com.taskify.backend.models.project.Label;
 import com.taskify.backend.services.project.LabelService;
 import com.taskify.backend.utils.ApiResponse;
+import com.taskify.backend.validators.project.*;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
@@ -20,10 +19,39 @@ import java.util.*;
 public class LabelController {
     private final LabelService labelService;
 
-    @PostMapping("")
-    public ApiResponse<Map<String, Object>> create(HttpServletRequest request, @RequestBody Label label) {
+    @GetMapping
+    public ApiResponse<GetLabelsResponseDto> getLabels(
+            HttpServletRequest request,
+            @Valid @ModelAttribute GetLabelsQueryValidator query) {
         User user = (User) request.getAttribute("user");
-        Map<String ,Object> response = labelService.create(user,label);
-        return ApiResponse.success(response, "Lable created successfully'", HttpStatus.OK.value());
+        GetLabelsResponseDto labels = labelService.getLabels(user, query);
+        return ApiResponse.success(labels, "Lables fetched successfully", HttpStatus.OK.value());
+    }
+
+    @PostMapping
+    public ApiResponse<Map<String, Object>> createLabel(
+            HttpServletRequest request,
+            @Valid @RequestBody LabelValidator labelRequest) {
+        User user = (User) request.getAttribute("user");
+        Map<String, Object> result = labelService.createLabel(user, labelRequest);
+        return ApiResponse.success(result, "Lable created successfully", HttpStatus.CREATED.value());
+    }
+
+    @PutMapping
+    public ApiResponse<Map<String, Object>> updateLabel(
+            HttpServletRequest request,
+            @Valid @RequestBody UpdateLabelValidator labelRequest) {
+        User user = (User) request.getAttribute("user");
+        Map<String, Object> result = labelService.updateLabel(user, labelRequest);
+        return ApiResponse.success(result, "Lable updated successfully", HttpStatus.CREATED.value());
+    }
+
+    @DeleteMapping
+    public ApiResponse<Map<String, Object>> deleteLabel(
+            HttpServletRequest request,
+            @Valid @RequestBody DeleteLabelValidator labelRequest) {
+        User user = (User) request.getAttribute("user");
+        Map<String, Object> result = labelService.deleteLabel(user, labelRequest);
+        return ApiResponse.success(result, "Lable deleted successfully", HttpStatus.CREATED.value());
     }
 }
