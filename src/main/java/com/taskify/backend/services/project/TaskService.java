@@ -601,4 +601,255 @@ public class TaskService {
                 "taskId", taskId
         );
     }
+
+    public Map<String, Object> removeAssignedMember(User user, AssignMemberValidator body) {
+        String userId = user.getId();
+        String projectId = body.getProjectId();
+        String taskId = body.getTaskId();
+        String memberId = body.getMemberId();
+
+        log.info("Removing assigned member - userId: {}, taskId: {}, memberId: {}", userId, taskId, memberId);
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        if (member.getRole() == MemberRole.MEMBER) {
+            throw new ApiException("You are not allowed to assign members to tasks", 403);
+        }
+
+        Member assignedMember = memberRepository.findById(memberId)
+                .orElseThrow(() -> new ApiException("Assignee member not found", 404));
+
+        if (!task.getAssignees().contains(memberId)) {
+            throw new ApiException("Member is not assigned", 400);
+        }
+
+        task.getAssignees().remove(memberId);
+        taskRepository.save(task);
+
+        Comment comment = new Comment();
+        comment.setContent("Removed assigned member: " + assignedMember.getEmail());
+        comment.setMemberId(member.getId());
+        comment.setCommentType(CommentType.REMOVE_ASSIGNED_MEMBER);
+        comment.setCreatedAt(Instant.now());
+        comment.setUpdatedAt(Instant.now());
+        comment = commentRepository.save(comment);
+
+        task.getComments().add(comment.getId());
+        taskRepository.save(task);
+
+        return Map.of(
+                "taskId", taskId,
+                "memberId", memberId
+        );
+    }
+
+    public Map<String, Object> addComment(User user, AddCommentValidator body) {
+        String userId = user.getId();
+        String taskId = body.getTaskId();
+        String content = body.getContent();
+
+        log.info("Adding comment - userId: {}, taskId: {}", userId, taskId);
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, task.getProjectId())
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        Comment comment = new Comment();
+        comment.setContent(content);
+        comment.setMemberId(member.getId());
+        comment.setCommentType(CommentType.GENERAL);
+        comment.setCreatedAt(Instant.now());
+        comment.setUpdatedAt(Instant.now());
+        comment = commentRepository.save(comment);
+
+        task.getComments().add(comment.getId());
+        taskRepository.save(task);
+
+        return Map.of("commentId", comment.getId());
+    }
+
+    public Map<String, Object> removeComment(User user, RemoveCommentValidator body) {
+        String userId = user.getId();
+        String taskId = body.getTaskId();
+        String commentId = body.getCommentId();
+
+        log.info("Removing comment - userId: {}, taskId: {}, commentId: {}", userId, taskId, commentId);
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, task.getProjectId())
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new ApiException("Comment not found", 404));
+
+        if (member.getRole() == MemberRole.MEMBER && !member.getId().equals(comment.getMemberId())) {
+            throw new ApiException("You have no permissions to remove this comment", 403);
+        }
+
+        task.getComments().remove(commentId);
+        taskRepository.save(task);
+
+        return Map.of("commentId", commentId);
+    }
+
+    public Map<String, Object> updateComment(User user, UpdateCommentValidator body) {
+        String userId = user.getId();
+        String taskId = body.getTaskId();
+        String commentId = body.getCommentId();
+        String content = body.getContent();
+
+        log.info("Updating comment - userId: {}, taskId: {}, commentId: {}", userId, taskId, commentId);
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ApiException("Task not found", 404));
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, task.getProjectId())
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        Comment comment = commentRepository.findById(commentId)
+                .orElseThrow(() -> new ApiException("Comment not found", 404));
+
+        if (!member.getId().equals(comment.getMemberId()) || member.getRole() == MemberRole.MEMBER) {
+            throw new ApiException("You do not have permission to update comment", 403);
+        }
+
+        comment.setContent(content);
+        comment.setUpdatedAt(Instant.now());
+        commentRepository.save(comment);
+
+        return Map.of("commentId", commentId);
+    }
+
+    public Map<String, Object> getCompletedTasks(User user, GetTasksValidator query) {
+        String userId = user.getId();
+        String projectId = query.getProjectId();
+
+        log.info("Getting completed tasks - userId: {}, projectId: {}", userId, projectId);
+
+        Member member = memberRepository.findByUserIdAndProjectId(userId, projectId)
+                .orElseThrow(() -> new ApiException("Member not found", 404));
+
+        return getCompletedTasksByProjectIdAndMemberId(projectId, member.getId(), query);
+    }
+
+    private Map<String, Object> getCompletedTasksByProjectIdAndMemberId(String projectId, String memberId, GetTasksValidator filters) {
+        String title = filters.getTitle();
+        boolean createdByMe = filters.getCreatedByMe();
+        boolean assignedToMe = filters.getAssignedToMe();
+        String priority = filters.getPriority();
+        int page = filters.getPage();
+        int limit = filters.getLimit();
+
+        Criteria criteria = Criteria.where("projectId").is(projectId)
+                .and("isDeleted").is(false)
+                .and("status").is(TaskStatus.COMPLETED)
+                .and("title").regex(title != null ? title : "", "i");
+
+        if (createdByMe) {
+            criteria.and("memberId").is(memberId);
+        }
+
+        if (assignedToMe) {
+            criteria.and("assignees").in(memberId);
+        }
+
+        if (priority != null && !priority.isEmpty()) {
+            criteria.and("priority").is(priority);
+        }
+
+        Aggregation aggregation = Aggregation.newAggregation(
+                Aggregation.match(criteria),
+
+                Aggregation.addFields()
+                        .addField("memberObjectId").withValue(
+                                new Document("$convert", new Document("input", "$memberId")
+                                        .append("to", "objectId")
+                                        .append("onError", "$memberId")
+                                )
+                        ).build(),
+
+                Aggregation.lookup("members", "memberObjectId", "_id", "creator"),
+                Aggregation.unwind("creator", true),
+
+                Aggregation.addFields()
+                        .addField("userObjectId").withValue(
+                                new Document("$convert", new Document("input", "$creator.userId")
+                                        .append("to", "objectId")
+                                        .append("onError", "$creator.userId")
+                                )
+                        ).build(),
+
+                Aggregation.lookup("users", "userObjectId", "_id", "user"),
+                Aggregation.unwind("user", true),
+
+                Aggregation.addFields()
+                        .addField("assigneeObjectIds").withValue(
+                                new Document("$map", new Document("input", "$assignees")
+                                        .append("as", "id")
+                                        .append("in", new Document("$convert", new Document("input", "$id")
+                                                .append("to", "objectId")
+                                                .append("onError", "$id")))
+                                )
+                        ).build(),
+
+                Aggregation.lookup("members", "assigneeObjectIds", "_id", "membersDetails"),
+
+                Aggregation.addFields()
+                        .addFieldWithValue("members",
+                                new Document("$map", new Document("input", "$membersDetails")
+                                        .append("as", "member")
+                                        .append("in", new Document(
+                                                "_id", new Document("$toString", "$member._id"))
+                                                .append("email", "$member.email"))))
+                        .addFieldWithValue("commentCount", new Document("$size", "$comments"))
+                        .build(),
+
+                Aggregation.project("projectId", "title", "description", "status", "priority",
+                                "dueDate", "completedDate", "subTasks", "taskType", "taskNumber",
+                                "isDeleted", "comments", "members", "commentCount")
+                        .andExpression("{$toString: '$_id'}").as("_id")
+                        .andExpression("{$toString: '$creator._id'}").as("creator.memberId")
+                        .and("creator.email").as("creator.email")
+                        .and("creator.role").as("creator.role")
+                        .and("user.fullName").as("creator.fullName")
+                        .and("user.avatar").as("creator.avatar"),
+
+                Aggregation.sort(Sort.Direction.DESC, "completedDate"),
+
+                Aggregation.addFields()
+                        .addFieldWithValue("isMember",
+                                new Document("$in", Arrays.asList(memberId, "$members._id")))
+                        .build()
+        );
+
+        List<Document> tasks = mongoTemplate.aggregate(aggregation, "tasks", Document.class).getMappedResults();
+
+        int total = tasks.size();
+        int totalPages = (int) Math.ceil((double) total / limit);
+        int start = (page - 1) * limit;
+        int end = Math.min(start + limit, total);
+        List<Document> paginatedTasks = start < total ? tasks.subList(start, end) : List.of();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("tasks", paginatedTasks);
+        result.put("total", total);
+        result.put("limit", limit);
+        result.put("page", page);
+        result.put("totalPages", totalPages);
+        result.put("serialNumberStartFrom", start + 1);
+        result.put("hasPrevPage", page > 1);
+        result.put("hasNextPage", page < totalPages);
+        result.put("prevPage", page > 1 ? page - 1 : null);
+        result.put("nextPage", page < totalPages ? page + 1 : null);
+
+        return result;
+    }
 }

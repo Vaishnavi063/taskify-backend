@@ -120,4 +120,54 @@ public class TaskController {
         return ApiResponse.success(response, "Deleted task successfully", HttpStatus.OK.value());
     }
 
+    @PostMapping("/removeAssignedMember")
+    public ApiResponse<Map<String,Object>> removeAssignedMember(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody AssignMemberValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.removeAssignedMember(user, body);
+        return ApiResponse.success(response, "Assigned member removed successfully", HttpStatus.OK.value());
+    }
+
+    @PostMapping("/addComment")
+    public ApiResponse<Map<String,Object>> addComment(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody AddCommentValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.addComment(user, body);
+        return ApiResponse.success(response, "Comment added successfully", HttpStatus.CREATED.value());
+    }
+
+    @DeleteMapping("/removeComment")
+    public ApiResponse<Map<String,Object>> removeComment(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody RemoveCommentValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.removeComment(user, body);
+        return ApiResponse.success(response, "Comment removed successfully", HttpStatus.OK.value());
+    }
+
+    @PatchMapping("/updateComment")
+    public ApiResponse<Map<String,Object>> updateComment(
+            HttpServletRequest httpRequest,
+            @Valid @RequestBody UpdateCommentValidator body
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.updateComment(user, body);
+        return ApiResponse.success(response, "Comment added successfully", HttpStatus.CREATED.value());
+    }
+
+    @GetMapping("/getCompletedTasks")
+    public ApiResponse<Map<String,Object>> getCompletedTasks(
+            HttpServletRequest httpRequest,
+            @Valid @ModelAttribute GetTasksValidator query
+    ){
+        User user = (User) httpRequest.getAttribute("user");
+        Map<String,Object> response = taskService.getCompletedTasks(user, query);
+        return ApiResponse.success(response, "Completed tasks fetched successfully", HttpStatus.OK.value());
+    }
+
 }
