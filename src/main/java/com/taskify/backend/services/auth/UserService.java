@@ -47,7 +47,7 @@ public class UserService {
                 "email", request.getEmail()
         ), EXP);
 
-        String verificationLink = frontendUrl + "/verify?token=" + verifyEmailToken;
+        String verificationLink = frontendUrl + "/auth/create-password?token=" + verifyEmailToken;
 
         Map<String, Object> templateVariables = new HashMap<>();
         templateVariables.put("fullName", request.getFullName());
@@ -151,7 +151,6 @@ public class UserService {
         );
     }
 
-
     public Map<String, Object> login(UserLoginValidator request) {
         String email = request.getEmail();
         String password = request.getPassword();
@@ -209,7 +208,7 @@ public class UserService {
                 "fullName", user.getFullName()
         ),EXP);
 
-        String resetPasswordLink = frontendUrl + "/verify?token=" + resetPasswordToken;
+        String resetPasswordLink = frontendUrl + "/auth/reset-password?token=" + resetPasswordToken;
 
         Map<String, Object> templateVariables = new HashMap<>();
         templateVariables.put("fullName", user.getFullName());

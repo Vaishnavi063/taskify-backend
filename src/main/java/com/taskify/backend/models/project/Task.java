@@ -2,13 +2,14 @@ package com.taskify.backend.models.project;
 
 import com.taskify.backend.constants.TaskEnums.TaskPriority;
 import com.taskify.backend.constants.TaskEnums.TaskStatus;
-import com.taskify.backend.models.auth.User;
 import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,9 +23,9 @@ public class Task {
     @Id
     private String id;
 
-    private String memberId;
-
     private String projectId;
+
+    private String memberId;
 
     private String userId;
 
@@ -54,4 +55,10 @@ public class Task {
 
     @Builder.Default
     private Boolean isDeleted = false;
+
+    @CreatedDate
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    private LocalDateTime updatedAt;
 }

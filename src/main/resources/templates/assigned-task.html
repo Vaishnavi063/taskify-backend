@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 550px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Header */
+        .header {
+            background-color: #1e88e5;
+            padding: 30px;
+            text-align: center;
+            color: #ffffff;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        /* Content */
+        .content {
+            padding: 30px;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        .greeting {
+            font-size: 15px;
+            margin-bottom: 20px;
+        }
+
+        .greeting b {
+            color: #1e88e5;
+        }
+
+        .content p {
+            margin: 12px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Button */
+        .button-wrapper {
+            text-align: center;
+            margin: 25px 0;
+        }
+
+        .button {
+            display: inline-block;
+            padding: 12px 35px;
+            background-color: #1e88e5;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: background-color 0.3s ease;
+        }
+
+        .button:hover {
+            background-color: #1565c0;
+        }
+
+        /* Info Box */
+        .info-box {
+            background-color: #f0f7ff;
+            border-left: 4px solid #1e88e5;
+            padding: 12px 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #333;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #fafafa;
+            padding: 20px 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #999;
+            line-height: 1.6;
+        }
+
+        .footer p {
+            margin: 4px 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                border-radius: 0;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .button {
+                width: 100%;
+                padding: 14px 20px;
+            }
+
+            .footer {
+                padding: 15px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Header -->
+    <div class="header">
+        <h1>New Task Assigned</h1>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+        <p class="greeting">Hi <b th:text="${assignee}"></b>,</p>
+
+        <p><b th:text="${projectAdminName}"></b> has assigned you a new task in the project.</p>
+
+        <p>This task has been carefully designated to align with your expertise and project priorities. Please review the details and ensure its timely completion.</p>
+
+        <!-- Button -->
+        <div class="button-wrapper">
+            <a th:href="${link}" class="button">View Task</a>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            💡 <strong>Need Help?</strong> For any clarifications or support, please reach out to
+            <span th:text="${projectAdminName}"></span> or your team lead.
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <p>&copy; 2024 Taskify. All rights reserved.</p>
+        <p>This is an automated email. Please do not reply to this message.</p>
+    </div>
+</div>
+</body>
+</html>

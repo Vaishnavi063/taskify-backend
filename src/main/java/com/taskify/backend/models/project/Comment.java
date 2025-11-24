@@ -1,5 +1,6 @@
 package com.taskify.backend.models.project;
 
+import com.taskify.backend.constants.CommentEnums.CommentType;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -29,7 +30,7 @@ public class Comment {
     private List<String> replies = new ArrayList<>();
 
     @Builder.Default
-    private String commentType = "General";
+    private CommentType commentType = CommentType.GENERAL;
 
     @Builder.Default
     private Instant createdAt = Instant.now();
