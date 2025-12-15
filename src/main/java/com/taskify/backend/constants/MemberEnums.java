@@ -1,7 +1,5 @@
 package com.taskify.backend.constants;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-
 public class MemberEnums {
 
     public enum MemberRole {
@@ -14,11 +12,6 @@ public class MemberEnums {
         PENDING,
         ACCEPTED,
         REJECTED
-    }
-
-    @JsonCreator
-    public static InvitationStatus fromString(String key) {
-        return key == null ? null : InvitationStatus.valueOf(key.toUpperCase());
     }
 }
 

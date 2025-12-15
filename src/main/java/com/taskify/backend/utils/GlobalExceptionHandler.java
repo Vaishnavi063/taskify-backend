@@ -36,8 +36,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception ex) {
+        ex.printStackTrace(); // Log the full stack trace
+        System.err.println("Unhandled exception: " + ex.getMessage());
         return new ResponseEntity<>(
-                ApiResponse.failure("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR.value()),
+                ApiResponse.failure("Internal Server Error: " + ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR.value()),
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }
